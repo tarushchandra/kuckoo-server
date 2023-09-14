@@ -24,6 +24,11 @@ interface GoogleTokenResult {
   typ: string;
 }
 
+export interface JwtUser {
+  id: string;
+  email: string;
+}
+
 const JWT_SECRET = "avicii@super1233";
 
 class UserService {
@@ -32,12 +37,6 @@ class UserService {
     const URL = `https://oauth2.googleapis.com/tokeninfo?id_token=${googleToken}`;
     const { data } = await axios.get<GoogleTokenResult>(URL);
     return data;
-  }
-
-  private static async getUserByEmail(payload: GoogleTokenResult) {
-    return prismaClient.user.findUnique({
-      where: { email: payload.email },
-    });
   }
 
   private static async createUser(payload: GoogleTokenResult) {
@@ -55,8 +54,18 @@ class UserService {
     return JWT.sign({ id: payload.id, email: payload.email }, JWT_SECRET);
   }
 
-  // Service Functions
-  public static async getCustomUserToken(googleToken: String) {
+  private static async getUserByEmail(payload: GoogleTokenResult) {
+    return prismaClient.user.findUnique({
+      where: { email: payload.email },
+    });
+  }
+
+  public static async decodeJwtToken(token: string) {
+    return JWT.verify(token, JWT_SECRET) as JwtUser;
+  }
+
+  // Service Functions (Queries and Mutations Resolvers)
+  public static async getCustomUserToken(googleToken: string) {
     const decodedToken: GoogleTokenResult = await UserService.decodeGoogleToken(
       googleToken
     );
@@ -68,6 +77,10 @@ class UserService {
 
     const customToken = await UserService.generateJwtToken(user);
     return customToken;
+  }
+
+  public static async getUserById(payload: JwtUser) {
+    return prismaClient.user.findUnique({ where: { id: payload.id } });
   }
 }
 
