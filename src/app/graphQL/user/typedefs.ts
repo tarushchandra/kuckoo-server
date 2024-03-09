@@ -4,6 +4,20 @@ export const typeDefs = `#graphql
         firstName: String!
         lastName: String
         email: String!
+        username: String!
         profileImageURL: String
+    }
+
+    input SignInFormInput {
+        email: String!
+        password: String!
+    }
+
+    input SignUpFormInput {
+        firstName: String!
+        lastName: String
+        email: String!
+        username: String!
+        password: String!
     }
 `;
