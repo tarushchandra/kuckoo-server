@@ -7,7 +7,7 @@ const queries = {
     { googleToken, user }: { googleToken?: string; user?: any }
   ) => {
     try {
-      return await UserService.getCustomUserToken(googleToken, user);
+      return await UserService.getCustomUserToken({ googleToken, user });
     } catch (err) {
       return err;
     }

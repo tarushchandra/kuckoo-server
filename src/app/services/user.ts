@@ -147,16 +147,13 @@ class UserService {
   // --------------------------------------------------------------------------------------
 
   // Service Functions (Queries and Mutations Resolvers)
-  public static async getCustomUserToken(
-    googleToken?: string,
-    inputUser?: any
-  ) {
+  public static async getCustomUserToken(payload: any) {
     let user: User;
 
-    if (googleToken) {
-      user = await UserService.signInWithGoogle(googleToken);
+    if (payload.googleToken) {
+      user = await UserService.signInWithGoogle(payload.googleToken);
     } else {
-      user = await UserService.signInWithEmailAndPassword(inputUser);
+      user = await UserService.signInWithEmailAndPassword(payload.user);
     }
 
     const customToken = await UserService.generateJwtToken(user);
