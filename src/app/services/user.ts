@@ -131,7 +131,7 @@ class UserService {
     let user = await UserService.getUserByEmail(email);
 
     if (!user || !user.password) {
-      throw new Error("credentials not found");
+      throw new Error("Credentials not found");
     }
 
     const isMatch = await UserService.compareHashedPassword(
@@ -167,6 +167,15 @@ class UserService {
 
   public static async getUserById(payload: JwtUser) {
     return prismaClient.user.findUnique({ where: { id: payload.id } });
+  }
+
+  public static async getUserByUsername(username: string) {
+    return prismaClient.user.findUnique({
+      where: { username },
+    });
+  }
+  public static async getAllUsers() {
+    return prismaClient.user.findMany();
   }
 }
 

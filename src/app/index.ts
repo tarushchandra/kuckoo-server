@@ -5,6 +5,7 @@ import cors from "cors";
 
 // Service Layers
 import UserService from "./services/user";
+import { JsonWebTokenError } from "jsonwebtoken";
 
 async function initApp() {
   const app = express();
@@ -18,9 +19,18 @@ async function initApp() {
       context: async ({ req }) => {
         const authHeader = req.headers["authorization"];
         const token = authHeader?.split(" ")[1];
-        return {
-          user: token ? await UserService.decodeJwtToken(token) : null,
-        };
+
+        try {
+          return {
+            user: token ? await UserService.decodeJwtToken(token) : null,
+          };
+        } catch (err) {
+          if (err instanceof JsonWebTokenError) {
+            return { user: null };
+          } else {
+            throw err;
+          }
+        }
       },
     })
   );

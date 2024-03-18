@@ -12,10 +12,29 @@ const queries = {
       return err;
     }
   },
-  getCurrentUser: async (_: any, args: any, context: GraphqlContext) => {
+  getSessionUser: async (_: any, args: any, context: GraphqlContext) => {
     if (!context.user) return null;
     try {
       return await UserService.getUserById(context.user);
+    } catch (err) {
+      return err;
+    }
+  },
+  getUser: async (
+    _: any,
+    { username }: { username: string },
+    context: GraphqlContext
+  ) => {
+    if (!context.user) return null;
+    try {
+      return await UserService.getUserByUsername(username);
+    } catch (err) {
+      return err;
+    }
+  },
+  getAllUsers: async () => {
+    try {
+      return await UserService.getAllUsers();
     } catch (err) {
       return err;
     }
