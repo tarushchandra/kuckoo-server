@@ -1,3 +1,4 @@
+import { User } from "@prisma/client";
 import UserService from "../../services/user";
 import { GraphqlContext } from "../index";
 
@@ -5,64 +6,42 @@ const queries = {
   getCustomUserToken: async (
     _: any,
     { googleToken, user }: { googleToken?: string; user?: any }
-  ) => {
-    try {
-      return await UserService.getCustomUserToken({ googleToken, user });
-    } catch (err) {
-      return err;
-    }
+  ) => await UserService.getCustomUserToken({ googleToken, user }),
+  getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {
+    if (!ctx.user) return null;
+    return await UserService.getUserById(ctx.user);
   },
-  getSessionUser: async (_: any, args: any, context: GraphqlContext) => {
-    if (!context.user) return null;
-    try {
-      return await UserService.getUserById(context.user);
-    } catch (err) {
-      return err;
-    }
+  getUser: async (_: any, { username }: { username: string }) => {
+    console.log("getUser called -", username);
+    return await UserService.getUserByUsername(username);
   },
-  getUser: async (
-    _: any,
-    { username }: { username: string },
-    context: GraphqlContext
-  ) => {
-    if (!context.user) return null;
-    try {
-      return await UserService.getUserByUsername(username);
-    } catch (err) {
-      return err;
-    }
-  },
-  getAllUsers: async () => {
-    try {
-      return await UserService.getAllUsers();
-    } catch (err) {
-      return err;
-    }
-  },
-  isUsernameExist: async (_: any, { username }: { username: string }) => {
-    try {
-      return await UserService.isUsernameExist(username);
-    } catch (err) {
-      return err;
-    }
-  },
-  isEmailExist: async (_: any, { email }: { email: string }) => {
-    try {
-      return await UserService.isEmailExist(email);
-    } catch (err) {
-      return err;
-    }
-  },
+  getAllUsers: async () => await UserService.getAllUsers(),
+  isUsernameExist: async (_: any, { username }: { username: string }) =>
+    await UserService.isUsernameExist(username),
+  isEmailExist: async (_: any, { email }: { email: string }) =>
+    await UserService.isEmailExist(email),
 };
 
 const mutations = {
-  createUserWithEmailAndPassword: async (_: any, { user }: { user: any }) => {
-    try {
-      return await UserService.signUpWithEmailAndPassword(user);
-    } catch (err) {
-      return err;
-    }
+  createUserWithEmailAndPassword: async (_: any, { user }: { user: any }) =>
+    await UserService.signUpWithEmailAndPassword(user),
+  followUser: async (_: any, { to }: { to: string }, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.followUser(ctx.user?.id, to);
+  },
+  unfollowUser: async (_: any, { to }: { to: string }, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.unfollowUser(ctx.user?.id, to);
   },
 };
 
-export const resolvers = { queries, mutations };
+const extraResolvers = {
+  User: {
+    followers: async (parent: User) =>
+      await UserService.getFollowers(parent.id),
+    followings: async (parent: User) =>
+      await UserService.getFollowings(parent.id),
+  },
+};
+
+export const resolvers = { queries, mutations, extraResolvers };

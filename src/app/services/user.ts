@@ -74,17 +74,25 @@ class UserService {
   // ---------------------------
 
   public static async isUsernameExist(username: string) {
-    const count = await prismaClient.user.count({
-      where: { username },
-    });
-    return count > 0;
+    try {
+      const count = await prismaClient.user.count({
+        where: { username },
+      });
+      return count > 0;
+    } catch (err) {
+      return err;
+    }
   }
 
   public static async isEmailExist(email: string) {
-    const count = await prismaClient.user.count({
-      where: { email },
-    });
-    return count > 0;
+    try {
+      const count = await prismaClient.user.count({
+        where: { email },
+      });
+      return count > 0;
+    } catch (err) {
+      return err;
+    }
   }
 
   // ---------------------------
@@ -148,25 +156,37 @@ class UserService {
 
   // Service Functions (Queries and Mutations Resolvers)
   public static async getCustomUserToken(payload: any) {
-    let user: User;
+    try {
+      let user: User;
 
-    if (payload.googleToken) {
-      user = await UserService.signInWithGoogle(payload.googleToken);
-    } else {
-      user = await UserService.signInWithEmailAndPassword(payload.user);
+      if (payload.googleToken) {
+        user = await UserService.signInWithGoogle(payload.googleToken);
+      } else {
+        user = await UserService.signInWithEmailAndPassword(payload.user);
+      }
+
+      const customToken = await UserService.generateJwtToken(user);
+      return customToken;
+    } catch (err) {
+      return err;
     }
-
-    const customToken = await UserService.generateJwtToken(user);
-    return customToken;
   }
 
   public static async signUpWithEmailAndPassword(inputUser: any) {
-    await UserService.createUser(inputUser);
-    return true;
+    try {
+      await UserService.createUser(inputUser);
+      return true;
+    } catch (err) {
+      return err;
+    }
   }
 
   public static async getUserById(payload: JwtUser) {
-    return prismaClient.user.findUnique({ where: { id: payload.id } });
+    try {
+      return prismaClient.user.findUnique({ where: { id: payload.id } });
+    } catch (err) {
+      return err;
+    }
   }
 
   public static async getUserByUsername(username: string) {
@@ -174,8 +194,66 @@ class UserService {
       where: { username },
     });
   }
+
   public static async getAllUsers() {
-    return prismaClient.user.findMany();
+    try {
+      return prismaClient.user.findMany();
+    } catch (err) {
+      return err;
+    }
+  }
+
+  // -----------------------------------------
+
+  public static async followUser(from: string, to: string) {
+    try {
+      await prismaClient.follows.create({
+        data: {
+          follower: { connect: { id: from } },
+          following: { connect: { id: to } },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async unfollowUser(from: string, to: string) {
+    try {
+      await prismaClient.follows.delete({
+        where: {
+          followerId_followingId: { followerId: from, followingId: to },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getFollowers(userId: string) {
+    try {
+      const result = await prismaClient.follows.findMany({
+        where: { followingId: userId },
+        include: { follower: true, following: true },
+      });
+      return result.map((user) => user.follower);
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getFollowings(userId: string) {
+    try {
+      const result = await prismaClient.follows.findMany({
+        where: { followerId: userId },
+        include: { following: true },
+      });
+      return result.map((user) => user.following);
+    } catch (err) {
+      return err;
+    }
   }
 }
 

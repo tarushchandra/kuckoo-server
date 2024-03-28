@@ -1,3 +1,5 @@
 export const mutations = `#graphql
-    createUserWithEmailAndPassword(user: SignUpFormInput!): Boolean!
+    createUserWithEmailAndPassword(user: SignUpFormInput!): Boolean
+    followUser(to: ID!): Boolean
+    unfollowUser(to: ID!): Boolean
 `;

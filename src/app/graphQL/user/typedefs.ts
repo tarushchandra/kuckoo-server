@@ -6,6 +6,9 @@ export const typeDefs = `#graphql
         email: String!
         username: String!
         profileImageURL: String
+
+        followers: [User]
+        followings: [User]
     }
 
     input SignInFormInput {

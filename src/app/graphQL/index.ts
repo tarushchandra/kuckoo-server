@@ -26,6 +26,7 @@ async function createApolloGraphQLServer() {
       Mutation: {
         ...User.resolvers.mutations,
       },
+      ...User.resolvers.extraResolvers,
     },
   });
 
