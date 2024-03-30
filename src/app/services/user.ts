@@ -207,7 +207,7 @@ class UserService {
 
   public static async followUser(from: string, to: string) {
     try {
-      await prismaClient.follows.create({
+      const data = await prismaClient.follows.create({
         data: {
           follower: { connect: { id: from } },
           following: { connect: { id: to } },
@@ -215,20 +215,20 @@ class UserService {
       });
       return true;
     } catch (err) {
-      return err;
+      return false;
     }
   }
 
   public static async unfollowUser(from: string, to: string) {
     try {
-      await prismaClient.follows.delete({
+      const data = await prismaClient.follows.delete({
         where: {
           followerId_followingId: { followerId: from, followingId: to },
         },
       });
       return true;
     } catch (err) {
-      return err;
+      return false;
     }
   }
 
@@ -253,6 +253,22 @@ class UserService {
       return result.map((user) => user.following);
     } catch (err) {
       return err;
+    }
+  }
+
+  public static async removeFollower(sessionUserId: string, userId: string) {
+    try {
+      await prismaClient.follows.delete({
+        where: {
+          followerId_followingId: {
+            followerId: userId,
+            followingId: sessionUserId,
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return false;
     }
   }
 }

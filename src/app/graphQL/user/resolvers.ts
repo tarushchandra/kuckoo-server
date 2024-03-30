@@ -33,6 +33,14 @@ const mutations = {
     if (!ctx.user || !ctx.user.id) return null;
     return await UserService.unfollowUser(ctx.user?.id, to);
   },
+  removeFollower: async (
+    _: any,
+    { userId }: { userId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.removeFollower(ctx.user.id, userId);
+  },
 };
 
 const extraResolvers = {
