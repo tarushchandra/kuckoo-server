@@ -181,9 +181,9 @@ class UserService {
     }
   }
 
-  public static async getUserById(payload: JwtUser) {
+  public static async getUserById(userId: string) {
     try {
-      return prismaClient.user.findUnique({ where: { id: payload.id } });
+      return prismaClient.user.findUnique({ where: { id: userId } });
     } catch (err) {
       return err;
     }
@@ -195,9 +195,10 @@ class UserService {
     });
   }
 
-  public static async getAllUsers() {
+  public static async getAllUsers(sessionUserId: string) {
     try {
-      return prismaClient.user.findMany();
+      const result = await prismaClient.user.findMany();
+      return result.filter((user) => user.id !== sessionUserId);
     } catch (err) {
       return err;
     }
@@ -236,7 +237,7 @@ class UserService {
     try {
       const result = await prismaClient.follows.findMany({
         where: { followingId: userId },
-        include: { follower: true, following: true },
+        include: { follower: true },
       });
       return result.map((user) => user.follower);
     } catch (err) {
@@ -250,7 +251,7 @@ class UserService {
         where: { followerId: userId },
         include: { following: true },
       });
-      return result.map((user) => user.following);
+      return result.map((user) => user.following) as User[];
     } catch (err) {
       return err;
     }
@@ -269,6 +270,39 @@ class UserService {
       return true;
     } catch (err) {
       return false;
+    }
+  }
+
+  public static async getRecommendedUsers(userId: string) {
+    try {
+      const myFollowings = await prismaClient.follows.findMany({
+        where: { followerId: userId },
+        include: {
+          following: {
+            include: { followers: { include: { following: true } } },
+          },
+        },
+      });
+
+      const users: User[] = [];
+      for (const myFollowing of myFollowings) {
+        const followingsOfMyFollowing = myFollowing.following.followers;
+        for (const followingOfMyFollowing of followingsOfMyFollowing) {
+          if (
+            myFollowings.find(
+              (myFollowing) =>
+                myFollowing.followingId === followingOfMyFollowing.followingId
+            ) ||
+            followingOfMyFollowing.followingId === userId
+          )
+            continue;
+
+          users.push(followingOfMyFollowing.following);
+        }
+      }
+      return users;
+    } catch (err) {
+      return err;
     }
   }
 }

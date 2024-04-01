@@ -8,18 +8,26 @@ const queries = {
     { googleToken, user }: { googleToken?: string; user?: any }
   ) => await UserService.getCustomUserToken({ googleToken, user }),
   getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {
-    if (!ctx.user) return null;
-    return await UserService.getUserById(ctx.user);
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getUserById(ctx.user.id);
   },
   getUser: async (_: any, { username }: { username: string }) => {
     console.log("getUser called -", username);
     return await UserService.getUserByUsername(username);
   },
-  getAllUsers: async () => await UserService.getAllUsers(),
+  getAllUsers: async (_: any, {}: any, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getAllUsers(ctx.user.id);
+  },
+
   isUsernameExist: async (_: any, { username }: { username: string }) =>
     await UserService.isUsernameExist(username),
   isEmailExist: async (_: any, { email }: { email: string }) =>
     await UserService.isEmailExist(email),
+  getRecommendedUsers: async (_: any, __: any, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getRecommendedUsers(ctx.user.id);
+  },
 };
 
 const mutations = {

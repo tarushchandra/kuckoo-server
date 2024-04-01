@@ -3,6 +3,7 @@ export const queries = `#graphql
     getSessionUser: User
     getUser(username: String): User
     getAllUsers: [User]
+    getRecommendedUsers: [User]
     isUsernameExist(username: String!): Boolean 
     isEmailExist(email: String!): Boolean 
 `;
