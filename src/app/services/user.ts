@@ -284,7 +284,9 @@ class UserService {
         },
       });
 
-      const users: User[] = [];
+      const recommenededUsers: User[] = [];
+      const recommendedUsersSet = new Set<string>();
+
       for (const myFollowing of myFollowings) {
         const followingsOfMyFollowing = myFollowing.following.followers;
         for (const followingOfMyFollowing of followingsOfMyFollowing) {
@@ -292,15 +294,21 @@ class UserService {
             myFollowings.find(
               (myFollowing) =>
                 myFollowing.followingId === followingOfMyFollowing.followingId
-            ) ||
-            followingOfMyFollowing.followingId === userId
+            )
+          )
+            continue;
+          if (followingOfMyFollowing.followingId === userId) continue;
+          if (
+            recommendedUsersSet.has(followingOfMyFollowing.following.username)
           )
             continue;
 
-          users.push(followingOfMyFollowing.following);
+          recommendedUsersSet.add(followingOfMyFollowing.following.username);
+          recommenededUsers.push(followingOfMyFollowing.following);
         }
       }
-      return users;
+
+      return recommenededUsers;
     } catch (err) {
       return err;
     }
