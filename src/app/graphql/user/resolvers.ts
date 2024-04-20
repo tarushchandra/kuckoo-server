@@ -15,18 +15,33 @@ const queries = {
     console.log("getUser called -", username);
     return await UserService.getUserByUsername(username);
   },
+  getMutualFollowers: async (
+    _: any,
+    { username }: { username: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getMutualFollowers(ctx.user.id, username);
+  },
+  getRecommendedUsers: async (_: any, __: any, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getRecommendedUsers(ctx.user.id);
+  },
   getAllUsers: async (_: any, {}: any, ctx: GraphqlContext) => {
     if (!ctx.user || !ctx.user.id) return null;
     return await UserService.getAllUsers(ctx.user.id);
   },
-
   isUsernameExist: async (_: any, { username }: { username: string }) =>
     await UserService.isUsernameExist(username),
   isEmailExist: async (_: any, { email }: { email: string }) =>
     await UserService.isEmailExist(email),
-  getRecommendedUsers: async (_: any, __: any, ctx: GraphqlContext) => {
+  isFollowing: async (
+    _: any,
+    { userId }: { userId: string },
+    ctx: GraphqlContext
+  ) => {
     if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getRecommendedUsers(ctx.user.id);
+    return await UserService.isFollowing(ctx.user.id, userId);
   },
 };
 
@@ -53,10 +68,18 @@ const mutations = {
 
 const extraResolvers = {
   User: {
-    followers: async (parent: User) =>
-      await UserService.getFollowers(parent.id),
-    followings: async (parent: User) =>
-      await UserService.getFollowings(parent.id),
+    followers: async (parent: User, _: any, ctx: GraphqlContext) => {
+      if (!ctx.user || !ctx.user.id) return null;
+      return await UserService.getFollowers(ctx.user.id, parent.id);
+    },
+    followings: async (parent: User, _: any, ctx: GraphqlContext) => {
+      if (!ctx.user || !ctx.user.id) return null;
+      return await UserService.getFollowings(ctx.user.id, parent.id);
+    },
+    totalFollowers: async (parent: User) =>
+      await UserService.getFollowersCount(parent.id),
+    totalFollowings: async (parent: User) =>
+      await UserService.getFollowingsCount(parent.id),
   },
 };
 

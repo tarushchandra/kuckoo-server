@@ -28,6 +28,7 @@ interface GoogleTokenResult {
 export interface JwtUser {
   id: string;
   email: string;
+  username: string;
 }
 
 const JWT_SECRET = "avicii@super1233";
@@ -56,7 +57,10 @@ class UserService {
   // ---------------------------
 
   private static async generateJwtToken(payload: User) {
-    return JWT.sign({ id: payload.id, email: payload.email }, JWT_SECRET);
+    return JWT.sign(
+      { id: payload.id, email: payload.email, username: payload.username },
+      JWT_SECRET
+    );
   }
 
   public static async decodeJwtToken(token: string) {
@@ -152,9 +156,99 @@ class UserService {
     return user;
   }
 
-  // --------------------------------------------------------------------------------------
+  // -------------------------------------------------------------
+  // Social Connection Functions
 
+  public static getSessionUserAsConnection(
+    sessionUserId: string,
+    connections: User[]
+  ) {
+    for (const myConnection of connections) {
+      if (myConnection?.id === sessionUserId) return myConnection;
+    }
+  }
+
+  private static getMutualConnections(
+    sessionUserId: string,
+    connections: any[]
+  ) {
+    const mutualConnections: User[] = [];
+
+    for (const myConnection of connections) {
+      const followersOfMyConnection = myConnection.followings.map(
+        (follow: any) => follow.follower
+      );
+      for (const followerOfMyConnection of followersOfMyConnection) {
+        if (followerOfMyConnection.id !== sessionUserId) continue;
+        mutualConnections.push(myConnection);
+      }
+    }
+    return mutualConnections;
+  }
+
+  public static getRemainingConnections(
+    sessionUserId: string,
+    connections: User[],
+    mutualConnections: User[]
+  ) {
+    if (mutualConnections.length === 0)
+      return connections.filter(
+        (myConnection) => myConnection?.id !== sessionUserId
+      ) as User[];
+
+    const remainingConnections: User[] = [];
+    for (const myConnection of connections) {
+      const isMutualConnection = mutualConnections.find(
+        (mutualConnection) => myConnection?.id === mutualConnection.id
+      );
+      if (isMutualConnection) continue;
+      if (myConnection?.id === sessionUserId) continue;
+      remainingConnections.push(myConnection as User);
+    }
+    return remainingConnections;
+  }
+
+  public static getRearrangedConnectionsBasedOnSessionUser(
+    sessionUserId: string,
+    connections: User[]
+  ) {
+    // console.log("sessionUserId -", sessionUserId);
+    // console.log("connections -", connections);
+
+    const sessionUserAsConnection = UserService.getSessionUserAsConnection(
+      sessionUserId,
+      connections
+    );
+
+    // console.log("sessionUserAsConnection -", sessionUserAsConnection);
+
+    const mutualConnections = UserService.getMutualConnections(
+      sessionUserId,
+      connections
+    );
+
+    // console.log("mutualConnections -", mutualConnections);
+
+    const remainingConnections = UserService.getRemainingConnections(
+      sessionUserId,
+      connections,
+      mutualConnections
+    );
+
+    // console.log("remainingConnections -", remainingConnections);
+
+    if (!sessionUserAsConnection)
+      return [...mutualConnections, ...remainingConnections];
+    return [
+      sessionUserAsConnection,
+      ...mutualConnections,
+      ...remainingConnections,
+    ];
+  }
+
+  // --------------------------------------------------------------------------------------
   // Service Functions (Queries and Mutations Resolvers)
+
   public static async getCustomUserToken(payload: any) {
     try {
       let user: User;
@@ -233,25 +327,102 @@ class UserService {
     }
   }
 
-  public static async getFollowers(userId: string) {
+  public static async getFollowers(
+    sessionUserId: string,
+    targetUserId: string
+  ) {
     try {
       const result = await prismaClient.follows.findMany({
-        where: { followingId: userId },
-        include: { follower: true },
+        where: { followingId: targetUserId },
+        include: {
+          follower: {
+            include: { followings: { include: { follower: true } } },
+          },
+        },
       });
-      return result.map((user) => user.follower);
+      const followers = result.map((follow) => follow.follower);
+
+      return UserService.getRearrangedConnectionsBasedOnSessionUser(
+        sessionUserId,
+        followers
+      );
     } catch (err) {
       return err;
     }
   }
 
-  public static async getFollowings(userId: string) {
+  public static async getFollowings(
+    sessionUserId: string,
+    targetUserId: string
+  ) {
+    try {
+      // const result = await prismaClient.follows.findMany({
+      //   where: { followerId: userId },
+      //   include: { following: true },
+      // });
+
+      // console.log("sessionUserId -", sessionUserId);
+      // console.log("targetUserId -", targetUserId);
+
+      const result = await prismaClient.follows.findMany({
+        where: { followerId: targetUserId },
+        include: {
+          following: {
+            include: { followings: { include: { follower: true } } },
+          },
+        },
+      });
+      const followings = result.map((follow) => follow.following);
+
+      return UserService.getRearrangedConnectionsBasedOnSessionUser(
+        sessionUserId,
+        followings
+      );
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getFollowersCount(userId: string) {
+    try {
+      const result = await prismaClient.follows.findMany({
+        where: { followingId: userId },
+        include: { follower: true },
+      });
+
+      return result.map((follow) => follow.follower).length;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getFollowingsCount(userId: string) {
     try {
       const result = await prismaClient.follows.findMany({
         where: { followerId: userId },
         include: { following: true },
       });
-      return result.map((user) => user.following) as User[];
+
+      return result.map((follow) => follow.following).length;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async isFollowing(sessionUserId: string, targetUserId: string) {
+    if (sessionUserId === targetUserId) return null;
+    try {
+      const amIFollowing = await prismaClient.follows.findUnique({
+        where: {
+          followerId_followingId: {
+            followerId: sessionUserId,
+            followingId: targetUserId,
+          },
+        },
+      });
+
+      if (!amIFollowing) return false;
+      return true;
     } catch (err) {
       return err;
     }
@@ -273,6 +444,34 @@ class UserService {
     }
   }
 
+  public static async getMutualFollowers(
+    sessionUserId: string,
+    targetUsername: string
+  ) {
+    try {
+      const targetUser = await UserService.getUserByUsername(targetUsername);
+      if (!targetUser || !targetUser.id)
+        throw new Error("Target User not found");
+
+      const result = await prismaClient.follows.findMany({
+        where: { followingId: targetUser.id },
+        include: {
+          follower: {
+            include: { followings: { include: { follower: true } } },
+          },
+        },
+      });
+      const targetUserFollowers = result.map((follow) => follow.follower);
+
+      return UserService.getMutualConnections(
+        sessionUserId,
+        targetUserFollowers
+      );
+    } catch (err) {
+      return err;
+    }
+  }
+
   public static async getRecommendedUsers(userId: string) {
     try {
       const myFollowings = await prismaClient.follows.findMany({
@@ -284,12 +483,13 @@ class UserService {
         },
       });
 
-      const recommenededUsers: User[] = [];
+      const recommendedUsers: User[] = [];
       const recommendedUsersSet = new Set<string>();
 
       for (const myFollowing of myFollowings) {
         const followingsOfMyFollowing = myFollowing.following.followers;
         for (const followingOfMyFollowing of followingsOfMyFollowing) {
+          // neglect if session user already follows this user.
           if (
             myFollowings.find(
               (myFollowing) =>
@@ -297,18 +497,22 @@ class UserService {
             )
           )
             continue;
+
+          // neglect if session user is being recommended.
           if (followingOfMyFollowing.followingId === userId) continue;
+
+          // neglect if same user is recommended twice.
           if (
             recommendedUsersSet.has(followingOfMyFollowing.following.username)
           )
             continue;
 
           recommendedUsersSet.add(followingOfMyFollowing.following.username);
-          recommenededUsers.push(followingOfMyFollowing.following);
+          recommendedUsers.push(followingOfMyFollowing.following);
         }
       }
 
-      return recommenededUsers;
+      return recommendedUsers;
     } catch (err) {
       return err;
     }

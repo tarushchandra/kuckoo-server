@@ -1,6 +1,6 @@
 import express from "express";
 import { expressMiddleware } from "@apollo/server/express4";
-import createApolloGraphQLServer from "./graphQL/index";
+import createApolloGraphQLServer from "./graphql/index";
 import cors from "cors";
 
 // Service Layers
