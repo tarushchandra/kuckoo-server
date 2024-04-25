@@ -9,8 +9,8 @@ export const typeDefs = `#graphql
 
         followers: [User]
         followings: [User]
-        totalFollowers: Int
-        totalFollowings: Int
+        followersCount: Int
+        followingsCount: Int
     }
 
     input SignInFormInput {

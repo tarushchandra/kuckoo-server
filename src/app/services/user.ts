@@ -3,6 +3,7 @@ import { prismaClient } from "../clients/prisma";
 import { User } from "@prisma/client";
 import JWT from "jsonwebtoken";
 import bcrypt from "bcrypt";
+import { redisClient } from "../clients/redis";
 
 interface GoogleTokenResult {
   iss: string;
@@ -284,9 +285,15 @@ class UserService {
   }
 
   public static async getUserByUsername(username: string) {
-    return prismaClient.user.findUnique({
+    const cachedUser = await redisClient.get(`USER:${username}`);
+    if (cachedUser) return JSON.parse(cachedUser);
+
+    const result = await prismaClient.user.findUnique({
       where: { username },
     });
+
+    await redisClient.set(`USER:${result?.id}`, JSON.stringify(result));
+    return result;
   }
 
   public static async getAllUsers(sessionUserId: string) {
@@ -302,12 +309,40 @@ class UserService {
 
   public static async followUser(from: string, to: string) {
     try {
-      const data = await prismaClient.follows.create({
+      await prismaClient.follows.create({
         data: {
           follower: { connect: { id: from } },
           following: { connect: { id: to } },
         },
       });
+
+      await redisClient.del(`FOLLOWERS_COUNT:${to}`);
+      await redisClient.del(`FOLLOWINGS_COUNT:${from}`);
+
+      const cachedMutualFollowers = await redisClient.keys(
+        `MUTUAL_FOLLOWERS:*:${to}`
+      );
+      cachedMutualFollowers.forEach(async (cachedKey) => {
+        if (cachedKey.includes(from)) return;
+        await redisClient.del(cachedKey);
+      });
+
+      const cachedSessionUserFollowersList = await redisClient.keys(
+        `TOTAL_FOLLOWERS:${from}:*`
+      );
+      cachedSessionUserFollowersList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+      await redisClient.del(`TOTAL_FOLLOWERS:${to}:${to}`);
+
+      const cachedSessionUserFollowingsList = await redisClient.keys(
+        `TOTAL_FOLLOWINGS:${from}:*`
+      );
+      cachedSessionUserFollowingsList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+
+      await redisClient.del(`RECOMMENDED_USERS:${from}`);
       return true;
     } catch (err) {
       return false;
@@ -316,11 +351,89 @@ class UserService {
 
   public static async unfollowUser(from: string, to: string) {
     try {
-      const data = await prismaClient.follows.delete({
+      await prismaClient.follows.delete({
         where: {
           followerId_followingId: { followerId: from, followingId: to },
         },
       });
+
+      await redisClient.del(`FOLLOWERS_COUNT:${to}`);
+      await redisClient.del(`FOLLOWINGS_COUNT:${from}`);
+
+      const cachedMutualFollowers = await redisClient.keys(
+        `MUTUAL_FOLLOWERS:*:${to}`
+      );
+      cachedMutualFollowers.forEach(async (cachedKey) => {
+        if (cachedKey.includes(from)) return;
+        await redisClient.del(cachedKey);
+      });
+
+      const cachedSessionUserFollowersList = await redisClient.keys(
+        `TOTAL_FOLLOWERS:${from}:*`
+      );
+      cachedSessionUserFollowersList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+      await redisClient.del(`TOTAL_FOLLOWERS:${to}:${to}`);
+
+      const cachedSessionUserFollowingsList = await redisClient.keys(
+        `TOTAL_FOLLOWINGS:${from}:*`
+      );
+      cachedSessionUserFollowingsList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+
+      await redisClient.del(`RECOMMENDED_USERS:${from}`);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  public static async removeFollower(
+    sessionUserId: string,
+    targetUserId: string
+  ) {
+    try {
+      await prismaClient.follows.delete({
+        where: {
+          followerId_followingId: {
+            followerId: targetUserId,
+            followingId: sessionUserId,
+          },
+        },
+      });
+
+      await redisClient.del(`FOLLOWERS_COUNT:${sessionUserId}`);
+      await redisClient.del(`FOLLOWINGS_COUNT:${targetUserId}`);
+
+      const cachedMutualFollowers = await redisClient.keys(
+        `MUTUAL_FOLLOWERS:*:${sessionUserId}`
+      );
+      cachedMutualFollowers.forEach(async (cachedKey) => {
+        if (cachedKey.includes(targetUserId)) return;
+        await redisClient.del(cachedKey);
+      });
+
+      const cachedTargetUserFollowersList = await redisClient.keys(
+        `TOTAL_FOLLOWERS:${targetUserId}:*`
+      );
+      cachedTargetUserFollowersList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+      await redisClient.del(
+        `TOTAL_FOLLOWERS:${sessionUserId}:${sessionUserId}`
+      );
+
+      const cachedTargetUserFollowingsList = await redisClient.keys(
+        `TOTAL_FOLLOWINGS:${targetUserId}:*`
+      );
+      cachedTargetUserFollowingsList.forEach(
+        async (cachedKey) => await redisClient.del(cachedKey)
+      );
+
+      await redisClient.del(`RECOMMENDED_USERS:${targetUserId}`);
+
       return true;
     } catch (err) {
       return false;
@@ -332,6 +445,11 @@ class UserService {
     targetUserId: string
   ) {
     try {
+      const cachedFollowers = await redisClient.get(
+        `TOTAL_FOLLOWERS:${sessionUserId}:${targetUserId}`
+      );
+      if (cachedFollowers) return JSON.parse(cachedFollowers);
+
       const result = await prismaClient.follows.findMany({
         where: { followingId: targetUserId },
         include: {
@@ -342,10 +460,17 @@ class UserService {
       });
       const followers = result.map((follow) => follow.follower);
 
-      return UserService.getRearrangedConnectionsBasedOnSessionUser(
-        sessionUserId,
-        followers
+      const rearrangedFollowers =
+        UserService.getRearrangedConnectionsBasedOnSessionUser(
+          sessionUserId,
+          followers
+        );
+      await redisClient.set(
+        `TOTAL_FOLLOWERS:${sessionUserId}:${targetUserId}`,
+        JSON.stringify(rearrangedFollowers)
       );
+
+      return rearrangedFollowers;
     } catch (err) {
       return err;
     }
@@ -356,13 +481,10 @@ class UserService {
     targetUserId: string
   ) {
     try {
-      // const result = await prismaClient.follows.findMany({
-      //   where: { followerId: userId },
-      //   include: { following: true },
-      // });
-
-      // console.log("sessionUserId -", sessionUserId);
-      // console.log("targetUserId -", targetUserId);
+      const cachedFollowings = await redisClient.get(
+        `TOTAL_FOLLOWINGS:${sessionUserId}:${targetUserId}`
+      );
+      if (cachedFollowings) return JSON.parse(cachedFollowings);
 
       const result = await prismaClient.follows.findMany({
         where: { followerId: targetUserId },
@@ -374,36 +496,49 @@ class UserService {
       });
       const followings = result.map((follow) => follow.following);
 
-      return UserService.getRearrangedConnectionsBasedOnSessionUser(
-        sessionUserId,
-        followings
+      const rearrangedFollowings =
+        UserService.getRearrangedConnectionsBasedOnSessionUser(
+          sessionUserId,
+          followings
+        );
+      await redisClient.set(
+        `TOTAL_FOLLOWINGS:${sessionUserId}:${targetUserId}`,
+        JSON.stringify(rearrangedFollowings)
       );
+
+      return rearrangedFollowings;
     } catch (err) {
       return err;
     }
   }
 
-  public static async getFollowersCount(userId: string) {
+  public static async getFollowersCount(targetUserId: string) {
     try {
       const result = await prismaClient.follows.findMany({
-        where: { followingId: userId },
+        where: { followingId: targetUserId },
         include: { follower: true },
       });
 
-      return result.map((follow) => follow.follower).length;
+      const followersCount = result.map((follow) => follow.follower).length;
+      redisClient.set(`FOLLOWERS_COUNT:${targetUserId}`, followersCount);
+
+      return followersCount;
     } catch (err) {
       return err;
     }
   }
 
-  public static async getFollowingsCount(userId: string) {
+  public static async getFollowingsCount(targetUserId: string) {
     try {
       const result = await prismaClient.follows.findMany({
-        where: { followerId: userId },
+        where: { followerId: targetUserId },
         include: { following: true },
       });
 
-      return result.map((follow) => follow.following).length;
+      const followingsCount = result.map((follow) => follow.following).length;
+      redisClient.set(`FOLLOWINGS_COUNT:${targetUserId}`, followingsCount);
+
+      return followingsCount;
     } catch (err) {
       return err;
     }
@@ -428,22 +563,6 @@ class UserService {
     }
   }
 
-  public static async removeFollower(sessionUserId: string, userId: string) {
-    try {
-      await prismaClient.follows.delete({
-        where: {
-          followerId_followingId: {
-            followerId: userId,
-            followingId: sessionUserId,
-          },
-        },
-      });
-      return true;
-    } catch (err) {
-      return false;
-    }
-  }
-
   public static async getMutualFollowers(
     sessionUserId: string,
     targetUsername: string
@@ -452,6 +571,11 @@ class UserService {
       const targetUser = await UserService.getUserByUsername(targetUsername);
       if (!targetUser || !targetUser.id)
         throw new Error("Target User not found");
+
+      const cachedMutualFollowers = await redisClient.get(
+        `MUTUAL_FOLLOWERS:${sessionUserId}:${targetUser.id}`
+      );
+      if (cachedMutualFollowers) return JSON.parse(cachedMutualFollowers);
 
       const result = await prismaClient.follows.findMany({
         where: { followingId: targetUser.id },
@@ -463,10 +587,16 @@ class UserService {
       });
       const targetUserFollowers = result.map((follow) => follow.follower);
 
-      return UserService.getMutualConnections(
+      const mutualFollowers = UserService.getMutualConnections(
         sessionUserId,
         targetUserFollowers
       );
+      await redisClient.set(
+        `MUTUAL_FOLLOWERS:${sessionUserId}:${targetUser.id}`,
+        JSON.stringify(mutualFollowers)
+      );
+
+      return mutualFollowers;
     } catch (err) {
       return err;
     }
@@ -474,6 +604,11 @@ class UserService {
 
   public static async getRecommendedUsers(userId: string) {
     try {
+      const cachedRecommendedUsers = await redisClient.get(
+        `RECOMMENDED_USERS:${userId}`
+      );
+      if (cachedRecommendedUsers) return JSON.parse(cachedRecommendedUsers);
+
       const myFollowings = await prismaClient.follows.findMany({
         where: { followerId: userId },
         include: {
@@ -511,6 +646,11 @@ class UserService {
           recommendedUsers.push(followingOfMyFollowing.following);
         }
       }
+
+      await redisClient.set(
+        `RECOMMENDED_USERS:${userId}`,
+        JSON.stringify(recommendedUsers)
+      );
 
       return recommendedUsers;
     } catch (err) {

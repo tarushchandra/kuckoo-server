@@ -76,9 +76,9 @@ const extraResolvers = {
       if (!ctx.user || !ctx.user.id) return null;
       return await UserService.getFollowings(ctx.user.id, parent.id);
     },
-    totalFollowers: async (parent: User) =>
+    followersCount: async (parent: User) =>
       await UserService.getFollowersCount(parent.id),
-    totalFollowings: async (parent: User) =>
+    followingsCount: async (parent: User) =>
       await UserService.getFollowingsCount(parent.id),
   },
 };
