@@ -657,6 +657,17 @@ class UserService {
       return err;
     }
   }
+
+  public static async getTweets(targetUserId: string) {
+    try {
+      const tweets = await prismaClient.tweet.findMany({
+        where: { authorId: targetUserId },
+      });
+      return tweets;
+    } catch (err) {
+      return err;
+    }
+  }
 }
 
 export default UserService;
