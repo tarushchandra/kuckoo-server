@@ -1,5 +1,8 @@
+import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { prismaClient } from "../clients/prisma";
-import { TweetInput } from "../graphql/tweet/resolvers";
+import { ImageUploadInput, TweetInput } from "../graphql/tweet/resolvers";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3Client } from "../clients/aws";
 
 class TweetService {
   public static async createTweet(payload: TweetInput, sessionUserId: string) {
@@ -58,6 +61,28 @@ class TweetService {
     } catch (err) {
       return false;
     }
+  }
+
+  public static async getSignedURLForUploadingTweet(
+    sessionUserId: string,
+    payload: ImageUploadInput
+  ) {
+    const { imageName, imageType } = payload;
+
+    const allowedImagesTypes = ["jpg", "jpeg", "png", "webp"];
+
+    console.log("imageType -", imageType);
+
+    if (!allowedImagesTypes.includes(imageType))
+      throw new Error("Unsupported Image Type");
+
+    const putObjectCommand = new PutObjectCommand({
+      Bucket: "twitter-clone-s3-bucket",
+      Key: `uploads/${sessionUserId}/images/${imageName}-${Date.now()}.${imageType}`,
+    });
+
+    const signedURL = await getSignedUrl(s3Client, putObjectCommand);
+    return signedURL;
   }
 }
 

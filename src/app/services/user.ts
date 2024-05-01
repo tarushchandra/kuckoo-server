@@ -32,8 +32,6 @@ export interface JwtUser {
   username: string;
 }
 
-const JWT_SECRET = "avicii@super1233";
-
 class UserService {
   // Utility Functions
   private static async decodeGoogleToken(googleToken: String) {
@@ -60,12 +58,12 @@ class UserService {
   private static async generateJwtToken(payload: User) {
     return JWT.sign(
       { id: payload.id, email: payload.email, username: payload.username },
-      JWT_SECRET
+      process.env.JWT_SECRET!
     );
   }
 
   public static async decodeJwtToken(token: string) {
-    return JWT.verify(token, JWT_SECRET) as JwtUser;
+    return JWT.verify(token, process.env.JWT_SECRET!) as JwtUser;
   }
 
   // ---------------------------

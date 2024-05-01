@@ -13,4 +13,9 @@ export const typeDefs = `#graphql
         content: String!
         imageURL: String
     }
+
+    input imageUploadInput {
+        imageName: String!
+        imageType: String!
+    }
 `;

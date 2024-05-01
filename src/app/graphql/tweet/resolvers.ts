@@ -6,9 +6,24 @@ export interface TweetInput {
   content: string;
   imageURL?: string;
 }
+export interface ImageUploadInput {
+  imageName: string;
+  imageType: string;
+}
 
 const queries = {
   getAllTweets: async () => TweetService.getAllTweets(),
+  getSignedURLForUploadingImage: async (
+    _: any,
+    { payload }: { payload: ImageUploadInput },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await TweetService.getSignedURLForUploadingTweet(
+      ctx.user.id,
+      payload
+    );
+  },
 };
 
 const mutations = {
