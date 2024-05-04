@@ -1,7 +1,7 @@
 export const typeDefs = `#graphql
     type Tweet {
         id: ID!
-        content: String!
+        content: String
         imageURL: String
         createdAt: String!
         updatedAt: String
@@ -10,7 +10,7 @@ export const typeDefs = `#graphql
     }
 
     input TweetInput {
-        content: String!
+        content: String
         imageURL: String
     }
 

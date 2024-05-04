@@ -3,7 +3,7 @@ import { GraphqlContext } from "..";
 import TweetService from "../../services/tweet";
 
 export interface TweetInput {
-  content: string;
+  content?: string;
   imageURL?: string;
 }
 export interface ImageUploadInput {
@@ -49,11 +49,11 @@ const mutations = {
   },
   updateTweet: async (
     _: any,
-    { tweetId, content }: { tweetId: string; content: string },
+    { tweetId, payload }: { tweetId: string; payload: TweetInput },
     ctx: GraphqlContext
   ) => {
     if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.updateTweet(ctx.user.id, tweetId, content);
+    return await TweetService.updateTweet(ctx.user.id, tweetId, payload);
   },
 };
 

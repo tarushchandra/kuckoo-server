@@ -8,11 +8,12 @@ import { Tweet, User } from "@prisma/client";
 
 class TweetService {
   public static async createTweet(payload: TweetInput, sessionUserId: string) {
+    const { content, imageURL } = payload;
     try {
       await prismaClient.tweet.create({
         data: {
-          content: payload.content,
-          imageURL: payload.imageURL,
+          content,
+          imageURL,
           author: { connect: { id: sessionUserId } },
         },
       });
@@ -52,12 +53,13 @@ class TweetService {
   public static async updateTweet(
     sessionUserId: string,
     tweetId: string,
-    content: string
+    payload: TweetInput
   ) {
+    const { content, imageURL } = payload;
     try {
       await prismaClient.tweet.update({
         where: { id: tweetId, authorId: sessionUserId },
-        data: { content },
+        data: { content, imageURL },
       });
       return true;
     } catch (err) {
