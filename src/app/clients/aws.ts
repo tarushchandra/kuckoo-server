@@ -7,5 +7,3 @@ export const s3Client = new S3Client({
   },
   region: "ap-south-1",
 });
-
-// feat: added aws s3 bucket to store tweet images

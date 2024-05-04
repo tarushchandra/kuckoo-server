@@ -661,6 +661,7 @@ class UserService {
       const tweets = await prismaClient.tweet.findMany({
         where: { authorId: targetUserId },
       });
+      tweets.sort((a, b) => Number(b?.createdAt) - Number(a?.createdAt));
       return tweets;
     } catch (err) {
       return err;

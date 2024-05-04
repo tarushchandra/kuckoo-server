@@ -24,6 +24,10 @@ const queries = {
       payload
     );
   },
+  getTweetsFeed: async (_: any, {}: any, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await TweetService.getTweetsFeed(ctx.user.id);
+  },
 };
 
 const mutations = {
