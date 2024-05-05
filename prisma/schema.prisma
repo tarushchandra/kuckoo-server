@@ -25,6 +25,8 @@ model User {
   followings Follows[] @relation("following")
 
   tweets Tweet[]
+
+  comments Comment[]
 }
 
 model Follows {
@@ -46,4 +48,30 @@ model Tweet {
 
   author   User   @relation(fields: [authorId], references: [id])
   authorId String
+
+  tweetEngagement TweetEngagement?
+}
+
+model TweetEngagement {
+  likes    Int
+  comments Comment[]
+  shares   Int
+
+  tweet   Tweet  @relation(fields: [tweetId], references: [id])
+  tweetId String
+
+  @@id([tweetId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+
+  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
+  tweetId         String
 }
