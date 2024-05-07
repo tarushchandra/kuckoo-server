@@ -25,7 +25,7 @@ model User {
   followings Follows[] @relation("following")
 
   tweets Tweet[]
-
+  likes Like[]
   comments Comment[]
 }
 
@@ -53,14 +53,24 @@ model Tweet {
 }
 
 model TweetEngagement {
-  likes    Int
+  likes    Like[]
   comments Comment[]
-  shares   Int
+  shares   Int @default(0)
 
   tweet   Tweet  @relation(fields: [tweetId], references: [id])
   tweetId String
 
   @@id([tweetId])
+}
+
+model Like {
+  user User @relation(fields: [userId],references: [id] ) 
+  userId String
+
+  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
+  tweetId String
+
+  @@id([userId, tweetId])
 }
 
 model Comment {

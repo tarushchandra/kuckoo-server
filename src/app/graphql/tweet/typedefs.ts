@@ -7,6 +7,7 @@ export const typeDefs = `#graphql
         updatedAt: String
 
         author: User
+        tweetEngagement: TweetEngagement
     }
 
     input TweetInput {

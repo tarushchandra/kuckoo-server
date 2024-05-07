@@ -1,6 +1,8 @@
 import { Tweet } from "@prisma/client";
 import { GraphqlContext } from "..";
 import TweetService from "../../services/tweet";
+import { TweetEngagementService } from "../../services/tweet-engagement";
+import UserService from "../../services/user";
 
 export interface TweetInput {
   content?: string;
@@ -60,7 +62,9 @@ const mutations = {
 const extraResolvers = {
   Tweet: {
     author: async (parent: Tweet) =>
-      await TweetService.getAuthor(parent.authorId),
+      await UserService.getUserById(parent.authorId),
+    tweetEngagement: async (parent: Tweet) =>
+      await TweetEngagementService.getTweetEngagement(parent.id),
   },
 };
 
