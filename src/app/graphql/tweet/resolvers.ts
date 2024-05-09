@@ -14,6 +14,8 @@ export interface ImageUploadInput {
 }
 
 const queries = {
+  getTweet: async (_: any, { tweetId }: { tweetId: string }) =>
+    await TweetService.getTweet(tweetId),
   getAllTweets: async () => TweetService.getAllTweets(),
   getSignedURLForUploadingImage: async (
     _: any,

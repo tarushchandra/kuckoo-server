@@ -167,16 +167,20 @@ class UserService {
     }
   }
 
-  private static getMutualConnections(
+  public static getMutualConnections(
     sessionUserId: string,
     connections: any[]
   ) {
     const mutualConnections: User[] = [];
 
     for (const myConnection of connections) {
+      // console.log("myConnection -", myConnection);
+
       const followersOfMyConnection = myConnection.followings.map(
         (follow: any) => follow.follower
       );
+      // console.log("followersOfMyConnection -", followersOfMyConnection);
+
       for (const followerOfMyConnection of followersOfMyConnection) {
         if (followerOfMyConnection.id !== sessionUserId) continue;
         mutualConnections.push(myConnection);

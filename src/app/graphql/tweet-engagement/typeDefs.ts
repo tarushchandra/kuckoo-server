@@ -7,8 +7,4 @@ export const typeDefs = `#graphql
         likesCount: Int
         isTweetLikedBySessionUser: Boolean
     }
-
-    type Like {
-        user: User
-    }
 `;

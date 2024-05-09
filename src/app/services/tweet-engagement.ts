@@ -1,4 +1,5 @@
 import { prismaClient } from "../clients/prisma";
+import UserService from "./user";
 
 export class TweetEngagementService {
   public static async getTweetEngagement(tweetId: string) {
@@ -61,14 +62,44 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getLikes(tweetId: string) {
+  public static async getLikes(sessionUserId: string, tweetId: string) {
     try {
       const result = await prismaClient.like.findMany({
         where: { tweetId },
-        include: { user: true },
+        include: {
+          user: { include: { followings: { include: { follower: true } } } },
+        },
       });
+
       const likes = result.map((like) => like.user);
-      return likes;
+      const rearrangedLikes =
+        UserService.getRearrangedConnectionsBasedOnSessionUser(
+          sessionUserId,
+          likes
+        );
+
+      return rearrangedLikes;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getMutualLikers(sessionUserId: string, tweetId: string) {
+    try {
+      const result = await prismaClient.like.findMany({
+        where: { tweetId },
+        include: {
+          user: { include: { followings: { include: { follower: true } } } },
+        },
+      });
+
+      const likes = result.map((like) => like.user);
+      const mutualLikes = UserService.getMutualConnections(
+        sessionUserId,
+        likes
+      );
+
+      return mutualLikes;
     } catch (err) {
       return err;
     }

@@ -7,6 +7,14 @@ import UserService from "./user";
 import { Tweet, User } from "@prisma/client";
 
 class TweetService {
+  public static async getTweet(tweetId: string) {
+    try {
+      return await prismaClient.tweet.findUnique({ where: { id: tweetId } });
+    } catch (err) {
+      return err;
+    }
+  }
+
   public static async createTweet(payload: TweetInput, sessionUserId: string) {
     const { content, imageURL } = payload;
     try {
@@ -20,22 +28,6 @@ class TweetService {
       return true;
     } catch (err) {
       return false;
-    }
-  }
-
-  public static async getAuthor(authorId: string) {
-    try {
-      return await prismaClient.user.findUnique({ where: { id: authorId } });
-    } catch (err) {
-      return err;
-    }
-  }
-
-  public static async getAllTweets() {
-    try {
-      return await prismaClient.tweet.findMany();
-    } catch (err) {
-      return err;
     }
   }
 
@@ -64,6 +56,14 @@ class TweetService {
       return true;
     } catch (err) {
       return false;
+    }
+  }
+
+  public static async getAllTweets() {
+    try {
+      return await prismaClient.tweet.findMany();
+    } catch (err) {
+      return err;
     }
   }
 
