@@ -3,7 +3,7 @@ export const typeDefs = `#graphql
         id: ID!
         firstName: String!
         lastName: String
-        email: String!
+        email: String
         username: String!
         profileImageURL: String
         createdAt: String

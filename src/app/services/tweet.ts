@@ -51,7 +51,7 @@ class TweetService {
     try {
       await prismaClient.tweet.update({
         where: { id: tweetId, authorId: sessionUserId },
-        data: { content, imageURL },
+        data: { content, imageURL, updatedAt: new Date(Date.now()) },
       });
       return true;
     } catch (err) {

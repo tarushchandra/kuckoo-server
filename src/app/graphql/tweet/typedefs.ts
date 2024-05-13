@@ -4,7 +4,7 @@ export const typeDefs = `#graphql
         content: String
         imageURL: String
         createdAt: String!
-        updatedAt: String
+        updatedAt: String!
 
         author: User
         tweetEngagement: TweetEngagement
