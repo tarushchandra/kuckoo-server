@@ -60,7 +60,7 @@ export class TweetEngagementService {
   public static async likeTweet(sessionUserId: string, tweetId: string) {
     try {
       await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
-      await prismaClient.like.create({
+      await prismaClient.tweetLike.create({
         data: {
           user: { connect: { id: sessionUserId } },
           tweetEngagement: { connect: { tweetId } },
@@ -74,7 +74,7 @@ export class TweetEngagementService {
 
   public static async dislikeTweet(sessionUserId: string, tweetId: string) {
     try {
-      await prismaClient.like.delete({
+      await prismaClient.tweetLike.delete({
         where: {
           userId_tweetId: { tweetId, userId: sessionUserId },
         },
@@ -88,7 +88,7 @@ export class TweetEngagementService {
 
   public static async isLikeExist(userId: string, tweetId: string) {
     try {
-      const result = await prismaClient.like.findUnique({
+      const result = await prismaClient.tweetLike.findUnique({
         where: { userId_tweetId: { tweetId, userId } },
       });
       if (!result) return false;
@@ -100,7 +100,7 @@ export class TweetEngagementService {
 
   public static async getLikes(sessionUserId: string, tweetId: string) {
     try {
-      const result = await prismaClient.like.findMany({
+      const result = await prismaClient.tweetLike.findMany({
         where: { tweetId },
         include: {
           user: { include: { followings: { include: { follower: true } } } },
@@ -122,7 +122,7 @@ export class TweetEngagementService {
 
   public static async getMutualLikers(sessionUserId: string, tweetId: string) {
     try {
-      const result = await prismaClient.like.findMany({
+      const result = await prismaClient.tweetLike.findMany({
         where: { tweetId },
         include: {
           user: { include: { followings: { include: { follower: true } } } },
@@ -143,7 +143,9 @@ export class TweetEngagementService {
 
   public static async getLikesCount(tweetId: string) {
     try {
-      const result = await prismaClient.like.findMany({ where: { tweetId } });
+      const result = await prismaClient.tweetLike.findMany({
+        where: { tweetId },
+      });
       return result.length;
     } catch (err) {
       return err;
@@ -159,7 +161,7 @@ export class TweetEngagementService {
   ) {
     try {
       await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
-      await prismaClient.comment.create({
+      await prismaClient.tweetComment.create({
         data: {
           content,
           tweetEngagement: { connect: { tweetId } },
@@ -178,7 +180,7 @@ export class TweetEngagementService {
     commentId: string
   ) {
     try {
-      await prismaClient.comment.delete({
+      await prismaClient.tweetComment.delete({
         where: { id: commentId, authorId: sessionUserId, tweetId },
       });
       await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
@@ -194,7 +196,7 @@ export class TweetEngagementService {
     content: string
   ) {
     try {
-      await prismaClient.comment.update({
+      await prismaClient.tweetComment.update({
         where: { id: commentId, authorId: sessionUserId },
         data: {
           content,
@@ -209,7 +211,7 @@ export class TweetEngagementService {
 
   public static async getComments(tweetId: string) {
     try {
-      const result = await prismaClient.comment.findMany({
+      const result = await prismaClient.tweetComment.findMany({
         where: { tweetId },
       });
       result.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
@@ -221,10 +223,61 @@ export class TweetEngagementService {
 
   public static async getCommentsCount(tweetId: string) {
     try {
-      const result = await prismaClient.comment.findMany({
+      const result = await prismaClient.tweetComment.findMany({
         where: { tweetId },
       });
       return result.length;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async likeComment(sessionUserId: string, commentId: string) {
+    try {
+      await prismaClient.commentLike.create({
+        data: {
+          user: { connect: { id: sessionUserId } },
+          comment: { connect: { id: commentId } },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async dislikeComment(sessionUserId: string, commentId: string) {
+    try {
+      await prismaClient.commentLike.delete({
+        where: { userId_commentId: { userId: sessionUserId, commentId } },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getCommentLikesCount(commentId: string) {
+    try {
+      const result = await prismaClient.commentLike.findMany({
+        where: { commentId },
+      });
+      return result.length;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async isCommentLikedBySessionUser(
+    sessionUserId: string,
+    commentId: string
+  ) {
+    try {
+      const result = await prismaClient.commentLike.findUnique({
+        where: { userId_commentId: { userId: sessionUserId, commentId } },
+      });
+      if (!result) return false;
+      return true;
     } catch (err) {
       return err;
     }

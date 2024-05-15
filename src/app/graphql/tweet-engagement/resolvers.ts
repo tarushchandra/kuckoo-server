@@ -1,4 +1,4 @@
-import { Comment, TweetEngagement } from "@prisma/client";
+import { TweetComment, TweetEngagement } from "@prisma/client";
 import { GraphqlContext } from "..";
 import { TweetEngagementService } from "../../services/tweet-engagement";
 import UserService from "../../services/user";
@@ -69,6 +69,22 @@ export const mutations = {
       content
     );
   },
+  likeComment: async (
+    _: any,
+    { commentId }: { commentId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await TweetEngagementService.likeComment(ctx.user.id, commentId);
+  },
+  dislikeComment: async (
+    _: any,
+    { commentId }: { commentId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await TweetEngagementService.dislikeComment(ctx.user.id, commentId);
+  },
 };
 
 export const extraResolvers = {
@@ -97,8 +113,21 @@ export const extraResolvers = {
   },
 
   Comment: {
-    author: async (parent: Comment) =>
+    author: async (parent: TweetComment) =>
       await UserService.getUserById(parent.authorId),
+    likesCount: async (parent: TweetComment) =>
+      await TweetEngagementService.getCommentLikesCount(parent.id),
+    isCommentLikedBySessionUser: async (
+      parent: TweetComment,
+      {}: any,
+      ctx: GraphqlContext
+    ) => {
+      if (!ctx || !ctx.user?.id) return null;
+      return await TweetEngagementService.isCommentLikedBySessionUser(
+        ctx.user.id,
+        parent.id
+      );
+    },
   },
 };
 

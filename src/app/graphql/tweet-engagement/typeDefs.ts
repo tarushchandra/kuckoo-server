@@ -17,5 +17,7 @@ export const typeDefs = `#graphql
         updatedAt: String!
 
         author: User
+        likesCount: Int
+        isCommentLikedBySessionUser: Boolean
     }
 `;

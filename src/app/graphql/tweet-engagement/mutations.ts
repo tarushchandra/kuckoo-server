@@ -4,4 +4,6 @@ export const mutations = `#graphql
     createComment(tweetId: String!, content: String!): Boolean!
     deleteComment(tweetId: String!, commentId: String!): Boolean!
     updateComment(commentId: String!, content: String!): Boolean!
+    likeComment(commentId: String!): Boolean!
+    dislikeComment(commentId: String!): Boolean!
 `;
