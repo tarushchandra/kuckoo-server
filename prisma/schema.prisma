@@ -24,18 +24,19 @@ model User {
   followers  Follows[] @relation("follower")
   followings Follows[] @relation("following")
 
-  tweets Tweet[]
-  likedTweets TweetLike[]
-  comments TweetComment[]
+  tweets        Tweet[]
+  likedTweets   TweetLike[]
+  comments      Comment[]
   likedComments CommentLike[]
+  // replies Comment[] @relation("replied-to-user")
 }
 
 model Follows {
   follower   User   @relation("follower", fields: [followerId], references: [id])
-  followerId String
+  followerId String @map("follower_id")
 
   following   User   @relation("following", fields: [followingId], references: [id])
-  followingId String
+  followingId String @map("following_id")
 
   @@id([followerId, followingId])
 }
@@ -48,52 +49,61 @@ model Tweet {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   author   User   @relation(fields: [authorId], references: [id])
-  authorId String
+  authorId String @map("author_id")
 
   tweetEngagement TweetEngagement?
 }
 
 model TweetEngagement {
   likes    TweetLike[]
-  comments TweetComment[]
-  shares   Int @default(0)
+  comments Comment[]
+  shares   Int         @default(0)
 
   tweet   Tweet  @relation(fields: [tweetId], references: [id])
-  tweetId String
+  tweetId String @map("tweet_id")
 
   @@id([tweetId])
 }
 
 model TweetLike {
-  user User @relation(fields: [userId],references: [id] ) 
-  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
 
   tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId String
+  tweetId         String          @map("tweet_id")
 
   @@id([userId, tweetId])
 }
 
-model TweetComment {
+model Comment {
   id        String   @id @default(cuid())
   content   String
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
-  likes CommentLike[]
 
   author   User   @relation(fields: [authorId], references: [id])
-  authorId String
+  authorId String @map("author_id")
 
   tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId         String
+  tweetId         String         @map("tweet_id")
+
+  likes CommentLike[]
+
+  parentComment Comment? @relation("parent-comments",fields: [parentCommentId], references: [id])
+  parentCommentId String?
+  comments Comment[] @relation("parent-comments")
+
+  replies Comment[] @relation("replied-to-comment")
+  repliedTo Comment? @relation("replied-to-comment", fields: [repliedToCommentId], references: [id])
+  repliedToCommentId String? @map("replied_to_comment_id")
 }
 
 model CommentLike {
-  user User @relation(fields: [userId],references: [id] ) 
-  userId String
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
 
-  comment TweetComment @relation(fields: [commentId], references: [id])
-  commentId String
+  comment   Comment @relation(fields: [commentId], references: [id])
+  commentId String  @map("comment_id")
 
   @@id([userId, commentId])
 }

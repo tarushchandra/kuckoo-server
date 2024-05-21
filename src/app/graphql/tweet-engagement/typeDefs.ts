@@ -19,5 +19,9 @@ export const typeDefs = `#graphql
         author: User
         likesCount: Int
         isCommentLikedBySessionUser: Boolean
+        
+        parentComment: Comment
+        commentsCount: Int
+        repliedTo: Comment
     }
 `;

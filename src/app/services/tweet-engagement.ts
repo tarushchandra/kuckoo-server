@@ -1,3 +1,4 @@
+import { Comment } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
 import UserService from "./user";
 
@@ -154,14 +155,15 @@ export class TweetEngagementService {
 
   // ----------------------------------------------------------------------------------
 
-  public static async createComment(
+  public static async createCommentOnTweet(
     sessionUserId: string,
-    tweetId: string,
-    content: string
+    content: string,
+    tweetId: string
   ) {
     try {
       await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
-      await prismaClient.tweetComment.create({
+
+      await prismaClient.comment.create({
         data: {
           content,
           tweetEngagement: { connect: { tweetId } },
@@ -180,7 +182,7 @@ export class TweetEngagementService {
     commentId: string
   ) {
     try {
-      await prismaClient.tweetComment.delete({
+      await prismaClient.comment.delete({
         where: { id: commentId, authorId: sessionUserId, tweetId },
       });
       await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
@@ -196,7 +198,7 @@ export class TweetEngagementService {
     content: string
   ) {
     try {
-      await prismaClient.tweetComment.update({
+      await prismaClient.comment.update({
         where: { id: commentId, authorId: sessionUserId },
         data: {
           content,
@@ -209,10 +211,17 @@ export class TweetEngagementService {
     }
   }
 
+  public static async getComment(tweetId: string, commentId: string) {
+    return prismaClient.comment.findUnique({
+      where: { id: commentId, tweetId },
+      include: { repliedTo: { include: { author: true } } },
+    });
+  }
+
   public static async getComments(tweetId: string) {
     try {
-      const result = await prismaClient.tweetComment.findMany({
-        where: { tweetId },
+      const result = await prismaClient.comment.findMany({
+        where: { tweetId, parentCommentId: null },
       });
       result.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
       return result;
@@ -223,7 +232,7 @@ export class TweetEngagementService {
 
   public static async getCommentsCount(tweetId: string) {
     try {
-      const result = await prismaClient.tweetComment.findMany({
+      const result = await prismaClient.comment.findMany({
         where: { tweetId },
       });
       return result.length;
@@ -278,6 +287,87 @@ export class TweetEngagementService {
       });
       if (!result) return false;
       return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  // ----------------------------------------------
+
+  public static async addReplyToComment(
+    sessionUserId: string,
+    tweetId: string,
+    commentId: string,
+    content: string
+  ) {
+    try {
+      const comment = await TweetEngagementService.getComment(
+        tweetId,
+        commentId
+      );
+      if (!comment) throw new Error("Parent comment not found");
+
+      if (!comment.parentCommentId) {
+        await prismaClient.comment.create({
+          data: {
+            tweetEngagement: { connect: { tweetId } },
+            content,
+            author: { connect: { id: sessionUserId } },
+            parentComment: { connect: { id: commentId } },
+            repliedTo: { connect: { id: commentId } },
+          },
+        });
+        return true;
+      }
+
+      await prismaClient.comment.create({
+        data: {
+          tweetEngagement: { connect: { tweetId } },
+          content,
+          author: { connect: { id: sessionUserId } },
+          parentComment: { connect: { id: comment.parentCommentId } },
+          repliedTo: { connect: { id: commentId } },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getCommentsOfComment(commentId: string, tweetId: string) {
+    try {
+      const result = await prismaClient.comment.findMany({
+        where: { parentCommentId: commentId, tweetId },
+      });
+      result.sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
+      return result;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getParentComment(commentId: string) {
+    try {
+      const comment = await prismaClient.comment.findUnique({
+        where: { id: commentId },
+        include: { parentComment: true },
+      });
+      return comment?.parentComment;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getCommentsCountOfComment(
+    commentId: string,
+    tweetId: string
+  ) {
+    try {
+      const result = await prismaClient.comment.findMany({
+        where: { parentCommentId: commentId, tweetId },
+      });
+      return result.length;
     } catch (err) {
       return err;
     }

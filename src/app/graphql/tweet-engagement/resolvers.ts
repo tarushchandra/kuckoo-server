@@ -1,4 +1,4 @@
-import { TweetComment, TweetEngagement } from "@prisma/client";
+import { Comment, TweetEngagement } from "@prisma/client";
 import { GraphqlContext } from "..";
 import { TweetEngagementService } from "../../services/tweet-engagement";
 import UserService from "../../services/user";
@@ -14,6 +14,14 @@ export const queries = {
     if (!ctx || !ctx.user?.id) return null;
     return await TweetEngagementService.getMutualLikers(ctx.user.id, tweetId);
   },
+  getCommentsOfComment: async (
+    _: any,
+    { tweetId, commentId }: { tweetId: string; commentId: string }
+  ) => TweetEngagementService.getCommentsOfComment(commentId, tweetId),
+  getComment: async (
+    _: any,
+    { tweetId, commentId }: { tweetId: string; commentId: string }
+  ) => TweetEngagementService.getComment(tweetId, commentId),
 };
 
 export const mutations = {
@@ -39,10 +47,10 @@ export const mutations = {
     ctx: GraphqlContext
   ) => {
     if (!ctx || !ctx.user?.id) return null;
-    return await TweetEngagementService.createComment(
+    return await TweetEngagementService.createCommentOnTweet(
       ctx.user.id,
-      tweetId,
-      content
+      content,
+      tweetId
     );
   },
   deleteComment: async (
@@ -85,6 +93,23 @@ export const mutations = {
     if (!ctx || !ctx.user?.id) return null;
     return await TweetEngagementService.dislikeComment(ctx.user.id, commentId);
   },
+  createReply: async (
+    _: any,
+    {
+      tweetId,
+      commentId,
+      content,
+    }: { tweetId: string; commentId: string; content: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await TweetEngagementService.addReplyToComment(
+      ctx.user.id,
+      tweetId,
+      commentId,
+      content
+    );
+  },
 };
 
 export const extraResolvers = {
@@ -113,12 +138,12 @@ export const extraResolvers = {
   },
 
   Comment: {
-    author: async (parent: TweetComment) =>
+    author: async (parent: Comment) =>
       await UserService.getUserById(parent.authorId),
-    likesCount: async (parent: TweetComment) =>
+    likesCount: async (parent: Comment) =>
       await TweetEngagementService.getCommentLikesCount(parent.id),
     isCommentLikedBySessionUser: async (
-      parent: TweetComment,
+      parent: Comment,
       {}: any,
       ctx: GraphqlContext
     ) => {
@@ -128,6 +153,18 @@ export const extraResolvers = {
         parent.id
       );
     },
+    commentsCount: async (parent: Comment) =>
+      TweetEngagementService.getCommentsCountOfComment(
+        parent.id,
+        parent.tweetId
+      ),
+    parentComment: async (parent: Comment) =>
+      TweetEngagementService.getParentComment(parent.id),
+    repliedTo: async (parent: Comment) =>
+      await TweetEngagementService.getComment(
+        parent.tweetId,
+        parent.repliedToCommentId!
+      ),
   },
 };
 
