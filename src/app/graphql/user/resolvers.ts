@@ -81,6 +81,8 @@ const extraResolvers = {
     followingsCount: async (parent: User) =>
       await UserService.getFollowingsCount(parent.id),
     tweets: async (parent: User) => await UserService.getTweets(parent.id),
+    tweetsCount: async (parent: User) =>
+      await UserService.getTweetsCount(parent.id),
   },
 };
 
