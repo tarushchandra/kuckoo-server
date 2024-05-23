@@ -218,13 +218,22 @@ export class TweetEngagementService {
     });
   }
 
-  public static async getComments(tweetId: string) {
+  public static async getComments(sessionUserId: string, tweetId: string) {
     try {
       const result = await prismaClient.comment.findMany({
         where: { tweetId, parentCommentId: null },
       });
       result.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
-      return result;
+
+      const commentsOfSessionUser = result.filter(
+        (comment) => comment.authorId === sessionUserId
+      );
+      const remainingComments = result.filter(
+        (comment) => comment.authorId !== sessionUserId
+      );
+
+      if (commentsOfSessionUser.length === 0) return remainingComments;
+      return [...commentsOfSessionUser, ...remainingComments];
     } catch (err) {
       return err;
     }

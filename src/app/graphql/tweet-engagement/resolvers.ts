@@ -131,8 +131,13 @@ export const extraResolvers = {
         parent.tweetId
       );
     },
-    comments: async (parent: TweetEngagement) =>
-      await TweetEngagementService.getComments(parent.tweetId),
+    comments: async (parent: TweetEngagement, {}: any, ctx: GraphqlContext) => {
+      if (!ctx || !ctx.user?.id) return null;
+      return await TweetEngagementService.getComments(
+        ctx.user.id,
+        parent.tweetId
+      );
+    },
     commentsCount: async (parent: TweetEngagement) =>
       await TweetEngagementService.getCommentsCount(parent.tweetId),
   },
