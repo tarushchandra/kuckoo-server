@@ -1,6 +1,7 @@
-import { Comment } from "@prisma/client";
+import { Comment, NotificationType } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
 import UserService from "./user";
+import { NotificationService } from "./notification";
 
 export class TweetEngagementService {
   public static async getTweetEngagement(tweetId: string) {
@@ -61,12 +62,26 @@ export class TweetEngagementService {
   public static async likeTweet(sessionUserId: string, tweetId: string) {
     try {
       await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
-      await prismaClient.tweetLike.create({
+      const tweetLike = await prismaClient.tweetLike.create({
         data: {
           user: { connect: { id: sessionUserId } },
           tweetEngagement: { connect: { tweetId } },
         },
+        include: {
+          tweetEngagement: {
+            include: { tweet: true },
+          },
+        },
       });
+
+      // create notification
+      await NotificationService.createNotification(
+        NotificationType.LIKE_ON_TWEET,
+        sessionUserId,
+        tweetLike.tweetEngagement.tweet.authorId,
+        { tweetId }
+      );
+
       return true;
     } catch (err) {
       return err;
@@ -75,12 +90,21 @@ export class TweetEngagementService {
 
   public static async dislikeTweet(sessionUserId: string, tweetId: string) {
     try {
-      await prismaClient.tweetLike.delete({
+      const tweetLike = await prismaClient.tweetLike.delete({
         where: {
           userId_tweetId: { tweetId, userId: sessionUserId },
         },
+        include: { tweetEngagement: { include: { tweet: true } } },
       });
       await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+
+      // delete notification
+      await NotificationService.deleteNotification(
+        NotificationType.LIKE_ON_TWEET,
+        sessionUserId,
+        tweetLike.tweetEngagement.tweet.authorId,
+        { tweetId }
+      );
       return true;
     } catch (err) {
       return err;
@@ -163,13 +187,27 @@ export class TweetEngagementService {
     try {
       await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
 
-      await prismaClient.comment.create({
+      const comment = await prismaClient.comment.create({
         data: {
           content,
           tweetEngagement: { connect: { tweetId } },
           author: { connect: { id: sessionUserId } },
         },
+        include: {
+          tweetEngagement: {
+            include: { tweet: true },
+          },
+        },
       });
+
+      // create notification
+      await NotificationService.createNotification(
+        NotificationType.COMMENT_ON_TWEET,
+        sessionUserId,
+        comment.tweetEngagement.tweet.authorId,
+        { tweetId, commentId: comment.id }
+      );
+
       return true;
     } catch (err) {
       return err;
@@ -182,10 +220,37 @@ export class TweetEngagementService {
     commentId: string
   ) {
     try {
-      await prismaClient.comment.delete({
+      const comment = await prismaClient.comment.delete({
         where: { id: commentId, authorId: sessionUserId, tweetId },
+        include: {
+          tweetEngagement: { include: { tweet: true } },
+          parentComment: true,
+        },
       });
+
       await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+
+      // delete notification
+      if (!comment.parentCommentId) {
+        await NotificationService.deleteNotification(
+          NotificationType.COMMENT_ON_TWEET,
+          sessionUserId,
+          comment.tweetEngagement.tweet.authorId,
+          { tweetId, commentId: comment.id }
+        );
+      } else {
+        await NotificationService.deleteNotification(
+          NotificationType.REPLY_ON_COMMENT,
+          sessionUserId,
+          comment.parentComment?.authorId!,
+          {
+            tweetId,
+            commentId: comment.parentCommentId,
+            repliedCommentId: comment.id,
+          }
+        );
+      }
+
       return true;
     } catch (err) {
       return err;
@@ -252,12 +317,22 @@ export class TweetEngagementService {
 
   public static async likeComment(sessionUserId: string, commentId: string) {
     try {
-      await prismaClient.commentLike.create({
+      const commentLike = await prismaClient.commentLike.create({
         data: {
           user: { connect: { id: sessionUserId } },
           comment: { connect: { id: commentId } },
         },
+        include: { comment: true },
       });
+
+      // create notification
+      await NotificationService.createNotification(
+        NotificationType.LIKE_ON_COMMENT,
+        sessionUserId,
+        commentLike.comment.authorId,
+        { tweetId: commentLike.comment.tweetId, commentId }
+      );
+
       return true;
     } catch (err) {
       return err;
@@ -266,9 +341,19 @@ export class TweetEngagementService {
 
   public static async dislikeComment(sessionUserId: string, commentId: string) {
     try {
-      await prismaClient.commentLike.delete({
+      const commentLike = await prismaClient.commentLike.delete({
         where: { userId_commentId: { userId: sessionUserId, commentId } },
+        include: { comment: true },
       });
+
+      // delete notification
+      await NotificationService.deleteNotification(
+        NotificationType.LIKE_ON_COMMENT,
+        sessionUserId,
+        commentLike.comment.authorId,
+        { tweetId: commentLike.comment.tweetId }
+      );
+
       return true;
     } catch (err) {
       return err;
@@ -316,8 +401,9 @@ export class TweetEngagementService {
       );
       if (!comment) throw new Error("Parent comment not found");
 
+      let repliedComment;
       if (!comment.parentCommentId) {
-        await prismaClient.comment.create({
+        repliedComment = await prismaClient.comment.create({
           data: {
             tweetEngagement: { connect: { tweetId } },
             content,
@@ -326,18 +412,26 @@ export class TweetEngagementService {
             repliedTo: { connect: { id: commentId } },
           },
         });
-        return true;
+      } else {
+        repliedComment = await prismaClient.comment.create({
+          data: {
+            tweetEngagement: { connect: { tweetId } },
+            content,
+            author: { connect: { id: sessionUserId } },
+            parentComment: { connect: { id: comment.parentCommentId } },
+            repliedTo: { connect: { id: commentId } },
+          },
+        });
       }
 
-      await prismaClient.comment.create({
-        data: {
-          tweetEngagement: { connect: { tweetId } },
-          content,
-          author: { connect: { id: sessionUserId } },
-          parentComment: { connect: { id: comment.parentCommentId } },
-          repliedTo: { connect: { id: commentId } },
-        },
-      });
+      // create notification
+      await NotificationService.createNotification(
+        NotificationType.REPLY_ON_COMMENT,
+        sessionUserId,
+        comment.authorId,
+        { tweetId, commentId, repliedCommentId: repliedComment.id }
+      );
+
       return true;
     } catch (err) {
       return err;

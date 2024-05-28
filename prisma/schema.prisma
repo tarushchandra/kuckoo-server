@@ -28,7 +28,9 @@ model User {
   likedTweets   TweetLike[]
   comments      Comment[]
   likedComments CommentLike[]
-  // replies Comment[] @relation("replied-to-user")
+
+  sentNotifications     Notification[] @relation("sender")
+  recievedNotifications Notification[] @relation("recipient")
 }
 
 model Follows {
@@ -85,17 +87,16 @@ model Comment {
   authorId String @map("author_id")
 
   tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId         String         @map("tweet_id")
+  tweetId         String          @map("tweet_id")
 
   likes CommentLike[]
 
-  parentComment Comment? @relation("parent-comments",fields: [parentCommentId], references: [id])
-  parentCommentId String?
-  comments Comment[] @relation("parent-comments")
-
-  replies Comment[] @relation("replied-to-comment")
-  repliedTo Comment? @relation("replied-to-comment", fields: [repliedToCommentId], references: [id])
-  repliedToCommentId String? @map("replied_to_comment_id")
+  parentComment      Comment?  @relation("parent-comments", fields: [parentCommentId], references: [id])
+  parentCommentId    String?
+  comments           Comment[] @relation("parent-comments")
+  replies            Comment[] @relation("replied-to-comment")
+  repliedTo          Comment?  @relation("replied-to-comment", fields: [repliedToCommentId], references: [id])
+  repliedToCommentId String?   @map("replied_to_comment_id")
 }
 
 model CommentLike {
@@ -106,4 +107,28 @@ model CommentLike {
   commentId String  @map("comment_id")
 
   @@id([userId, commentId])
+}
+
+enum NotificationType {
+  LIKE_ON_TWEET
+  COMMENT_ON_TWEET
+  LIKE_ON_COMMENT
+  REPLY_ON_COMMENT
+  FOLLOW
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  type        NotificationType
+  senderId    String           @map("sender_id")
+  recipientId String           @map("recipient_id")
+  isSeen      Boolean          @default(false) @map("is_seen")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  // tweetId String? @map("tweet_id")
+
+  sender    User @relation("sender", fields: [senderId], references: [id])
+  recipient User @relation("recipient", fields: [recipientId], references: [id])
+  // tweet Tweet? @relation(fields: [tweetId], references: [id])
+
+  metaData Json?
 }

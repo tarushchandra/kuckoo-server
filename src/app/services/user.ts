@@ -1,9 +1,10 @@
 import axios from "axios";
 import { prismaClient } from "../clients/prisma";
-import { User } from "@prisma/client";
+import { NotificationType, User } from "@prisma/client";
 import JWT from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { redisClient } from "../clients/redis";
+import { NotificationService } from "./notification";
 
 interface GoogleTokenResult {
   iss: string;
@@ -318,6 +319,13 @@ class UserService {
         },
       });
 
+      // create notification
+      await NotificationService.createNotification(
+        NotificationType.FOLLOW,
+        from,
+        to
+      );
+
       await redisClient.del(`FOLLOWERS_COUNT:${to}`);
       await redisClient.del(`FOLLOWINGS_COUNT:${from}`);
 
@@ -358,6 +366,13 @@ class UserService {
           followerId_followingId: { followerId: from, followingId: to },
         },
       });
+
+      // delete notification
+      await NotificationService.deleteNotification(
+        NotificationType.FOLLOW,
+        from,
+        to
+      );
 
       await redisClient.del(`FOLLOWERS_COUNT:${to}`);
       await redisClient.del(`FOLLOWINGS_COUNT:${from}`);
