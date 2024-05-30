@@ -8,6 +8,7 @@ export const typeDefs = `#graphql
         likesCount: Int
         isTweetLikedBySessionUser: Boolean
         commentsCount: Int
+        isTweetBookmarkedBySessionUser: Boolean
     }
 
     type Comment {

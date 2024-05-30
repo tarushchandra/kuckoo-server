@@ -22,6 +22,10 @@ export const queries = {
     _: any,
     { tweetId, commentId }: { tweetId: string; commentId: string }
   ) => TweetEngagementService.getComment(tweetId, commentId),
+  getBookmarks: async (_: any, {}, ctx: GraphqlContext) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await TweetEngagementService.getBookmarks(ctx.user.id);
+  },
 };
 
 export const mutations = {
@@ -110,6 +114,22 @@ export const mutations = {
       content
     );
   },
+  createBookmark: async (
+    _: any,
+    { tweetId }: { tweetId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await TweetEngagementService.createBookmark(ctx.user.id, tweetId);
+  },
+  removeBookmark: async (
+    _: any,
+    { tweetId }: { tweetId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await TweetEngagementService.removeBookmark(ctx.user.id, tweetId);
+  },
 };
 
 export const extraResolvers = {
@@ -140,6 +160,17 @@ export const extraResolvers = {
     },
     commentsCount: async (parent: TweetEngagement) =>
       await TweetEngagementService.getCommentsCount(parent.tweetId),
+    isTweetBookmarkedBySessionUser: async (
+      parent: TweetEngagement,
+      {},
+      ctx: GraphqlContext
+    ) => {
+      if (!ctx || !ctx.user?.id) return null;
+      return await TweetEngagementService.isTweetBookmarkedBySessionUser(
+        ctx.user.id,
+        parent.tweetId
+      );
+    },
   },
 
   Comment: {

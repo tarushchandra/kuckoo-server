@@ -31,6 +31,8 @@ model User {
 
   sentNotifications     Notification[] @relation("sender")
   recievedNotifications Notification[] @relation("recipient")
+
+  bookmarks Bookmark[]
 }
 
 model Follows {
@@ -60,6 +62,7 @@ model TweetEngagement {
   likes    TweetLike[]
   comments Comment[]
   shares   Int         @default(0)
+  bookmarks Bookmark[]
 
   tweet   Tweet  @relation(fields: [tweetId], references: [id])
   tweetId String @map("tweet_id")
@@ -124,11 +127,19 @@ model Notification {
   recipientId String           @map("recipient_id")
   isSeen      Boolean          @default(false) @map("is_seen")
   createdAt   DateTime         @default(now()) @map("created_at")
-  // tweetId String? @map("tweet_id")
 
   sender    User @relation("sender", fields: [senderId], references: [id])
   recipient User @relation("recipient", fields: [recipientId], references: [id])
-  // tweet Tweet? @relation(fields: [tweetId], references: [id])
 
   metaData Json?
+}
+
+model Bookmark {
+  user User @relation(fields: [userId], references: [id])
+  userId String @map("user_id")
+
+  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
+  tweetId String @map("tweet_id")
+
+  @@id([userId, tweetId])
 }

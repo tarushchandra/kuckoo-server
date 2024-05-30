@@ -8,4 +8,7 @@ export const mutations = `#graphql
     likeComment(commentId: String!): Boolean!
     dislikeComment(commentId: String!): Boolean!
     createReply(tweetId: String!, commentId: String!, content: String!): Boolean!
+
+    createBookmark(tweetId: String!): Boolean!
+    removeBookmark(tweetId: String!): Boolean!
 `;

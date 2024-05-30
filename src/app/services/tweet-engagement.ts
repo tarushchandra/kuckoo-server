@@ -475,4 +475,60 @@ export class TweetEngagementService {
       return err;
     }
   }
+
+  // ---------------------------------------------------------------------------------
+
+  public static async createBookmark(sessionUserId: string, tweetId: string) {
+    try {
+      await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
+      await prismaClient.bookmark.create({
+        data: {
+          user: { connect: { id: sessionUserId } },
+          tweetEngagement: { connect: { tweetId } },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async removeBookmark(sessionUserId: string, tweetId: string) {
+    try {
+      await prismaClient.bookmark.delete({
+        where: { userId_tweetId: { userId: sessionUserId, tweetId } },
+      });
+      await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getBookmarks(sessionUserId: string) {
+    try {
+      const result = await prismaClient.bookmark.findMany({
+        where: { userId: sessionUserId },
+        include: { tweetEngagement: { include: { tweet: true } } },
+      });
+      return result.map((bookmark) => bookmark.tweetEngagement.tweet);
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async isTweetBookmarkedBySessionUser(
+    sessionUserId: string,
+    tweetId: string
+  ) {
+    try {
+      const result = await prismaClient.bookmark.findUnique({
+        where: { userId_tweetId: { userId: sessionUserId, tweetId } },
+      });
+      if (!result) return false;
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
 }
