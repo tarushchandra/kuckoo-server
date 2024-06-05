@@ -29,11 +29,17 @@ model User {
   comments      Comment[]
   likedComments CommentLike[]
 
+  bookmarks Bookmark[]
+
   sentNotifications     Notification[] @relation("sender")
   recievedNotifications Notification[] @relation("recipient")
 
-  bookmarks Bookmark[]
+  chats Chat[]
+  chatMemberships ChatMembership[]
+  sentMessages Message[] @relation("sender")
 }
+
+// --------------------------------------------------------------------------
 
 model Follows {
   follower   User   @relation("follower", fields: [followerId], references: [id])
@@ -44,6 +50,8 @@ model Follows {
 
   @@id([followerId, followingId])
 }
+
+// --------------------------------------------------------------------------
 
 model Tweet {
   id        String   @id @default(cuid())
@@ -57,6 +65,8 @@ model Tweet {
 
   tweetEngagement TweetEngagement?
 }
+
+// --------------------------------------------------------------------------
 
 model TweetEngagement {
   likes    TweetLike[]
@@ -112,6 +122,8 @@ model CommentLike {
   @@id([userId, commentId])
 }
 
+// ----------------------------------------------------------------------------------
+
 enum NotificationType {
   LIKE_ON_TWEET
   COMMENT_ON_TWEET
@@ -134,6 +146,8 @@ model Notification {
   metaData Json?
 }
 
+// ----------------------------------------------------------------------------------
+
 model Bookmark {
   user User @relation(fields: [userId], references: [id])
   userId String @map("user_id")
@@ -142,4 +156,49 @@ model Bookmark {
   tweetId String @map("tweet_id")
 
   @@id([userId, tweetId])
+}
+
+// ----------------------------------------------------------------------------------
+
+model Chat {
+  id String @id @default(cuid())
+  name String?
+  isGroupChat Boolean @default(false) @map("is_group_chat")
+  creatorId String @map("creator_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  creator User @relation(fields: [creatorId], references: [id])
+  members ChatMembership[]
+  messages Message[]
+}
+
+enum ChatMemberRole {
+  ADMIN
+  MEMBER
+}
+
+model ChatMembership {
+  chatId String @map("chat_id")
+  userId String @map("user_id")
+  role ChatMemberRole @default(MEMBER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  
+  @@id([chatId, userId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  senderId String @map("sender_id")
+  content String
+  chatId String @map("chat_id") 
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sender User @relation("sender", fields: [senderId], references: [id])
+  chat Chat @relation(fields: [chatId], references: [id])
 }
