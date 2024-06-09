@@ -4,11 +4,23 @@ export const typeDefs = `#graphql
         name: String
         isGroupChat: Boolean
         creator: User
-        members: [User]
         createdAt: String
         
+        totalMembersCount: Int
+        members: [User]
         messages: [Message]
         latestMessage: Message
+    }
+
+    enum ChatMemberRole {
+        ADMIN,
+        MEMBER
+    }
+
+    type ChatMembership {
+        chat: Chat
+        user: User
+        role: ChatMemberRole
     }
 
     type Message {

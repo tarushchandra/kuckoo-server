@@ -1,4 +1,4 @@
-import { Chat, Message } from "@prisma/client";
+import { Chat, ChatMemberRole, Message } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
 
 export interface CreateMessagePayload {
@@ -18,23 +18,24 @@ interface GroupedMessages {
 }
 
 export class ChatService {
-  public static async findOrCreateChat(
+  private static async findOrCreateChat(
     sessionUserId: string,
     targetUserIds: string[],
     metaData?: ChatMetaData
   ) {
     const totalMemberIds = [sessionUserId, ...targetUserIds];
 
-    // find chat
-    const chat = await prismaClient.chat.findFirst({
-      where: {
-        AND: [
-          { members: { some: { userId: sessionUserId } } },
-          { members: { some: { userId: targetUserIds[0] } } },
-        ],
-      },
-    });
-    if (chat) return chat;
+    if (!metaData) {
+      const chat = await prismaClient.chat.findFirst({
+        where: {
+          AND: totalMemberIds.map((memberId) => ({
+            members: { some: { userId: memberId } },
+          })),
+        },
+      });
+      if (chat) return chat;
+      // console.log("chat -", chat);
+    }
 
     // create chat
     if (!metaData)
@@ -55,12 +56,54 @@ export class ChatService {
         members: {
           create: totalMemberIds.map((memberId) => ({
             user: { connect: { id: memberId } },
+            role:
+              memberId === sessionUserId
+                ? ChatMemberRole.ADMIN
+                : ChatMemberRole.MEMBER,
           })),
         },
         name: metaData.chatName,
         isGroupChat: metaData.isGroupChat,
       },
     });
+  }
+
+  public static async createGroup(
+    sessionUserId: string,
+    name: string,
+    targetUserIds: string[]
+  ) {
+    try {
+      await ChatService.findOrCreateChat(sessionUserId, targetUserIds, {
+        chatName: name,
+        isGroupChat: true,
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async addUsersToGroup(
+    sessionUserId: string,
+    chatId: string,
+    targetUserIds: string[]
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: { id: chatId, creatorId: sessionUserId },
+        data: {
+          members: {
+            create: targetUserIds.map((memberId) => ({
+              user: { connect: { id: memberId } },
+            })),
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
   }
 
   public static async getChats(sessionUserId: string) {
@@ -71,7 +114,10 @@ export class ChatService {
           members: {
             where: { userId: { not: sessionUserId } },
             include: { user: true },
+            take: 2,
+            orderBy: { createdAt: "asc" },
           },
+          creator: true,
         },
         orderBy: { updatedAt: "desc" },
       });
@@ -80,6 +126,57 @@ export class ChatService {
         ...chat,
         members: chat.members.map((x) => x.user),
       }));
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getChatMembers(sessionUserId: string, chatId: string) {
+    try {
+      const result = await prismaClient.chatMembership.findMany({
+        where: {
+          chatId,
+          chat: { members: { some: { userId: sessionUserId } } },
+        },
+        include: { user: true },
+      });
+
+      const sessionUserChatMembership = result.filter(
+        (x) => x.userId === sessionUserId
+      );
+      const adminChatMemberships = result.filter((x) => {
+        if (x.userId === sessionUserId) return;
+        return x.role === ChatMemberRole.ADMIN;
+      });
+      const remainingChatMemberships = result.filter(
+        (x) => x.userId !== sessionUserId && x.role !== ChatMemberRole.ADMIN
+      );
+
+      // console.log("sessionUserChatMembership -", sessionUserChatMembership);
+      // console.log("adminChatMemberships -", adminChatMemberships);
+      // console.log("remainingChatMemberships -", remainingChatMemberships);
+
+      return [
+        {
+          user: sessionUserChatMembership[0].user,
+          role: sessionUserChatMembership[0].role,
+        },
+        ...adminChatMemberships,
+        ...remainingChatMemberships,
+      ];
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getMembersCount(sessionUserId: string, chatId: string) {
+    try {
+      return prismaClient.chatMembership.count({
+        where: {
+          chatId,
+          chat: { members: { some: { userId: sessionUserId } } },
+        },
+      });
     } catch (err) {
       return err;
     }
@@ -129,7 +226,10 @@ export class ChatService {
   public static async getMessages(sessionUserId: string, chatId: string) {
     try {
       const result = await prismaClient.message.findMany({
-        where: { chatId },
+        where: {
+          chatId,
+          chat: { members: { some: { userId: sessionUserId } } },
+        },
         include: { sender: true },
         orderBy: { createdAt: "desc" },
       });
@@ -154,10 +254,13 @@ export class ChatService {
     }
   }
 
-  public static async getLatestMessage(chatId: string) {
+  public static async getLatestMessage(sessionUserId: string, chatId: string) {
     try {
       return await prismaClient.message.findFirst({
-        where: { chatId },
+        where: {
+          chatId,
+          chat: { members: { some: { userId: sessionUserId } } },
+        },
         orderBy: { createdAt: "desc" },
         include: { sender: { select: { firstName: true, username: true } } },
       });
