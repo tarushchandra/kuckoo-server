@@ -31,6 +31,14 @@ const queries = {
     if (!ctx.user || !ctx.user.id) return null;
     return await UserService.getAllUsers(ctx.user.id);
   },
+  getUsers: async (
+    _: any,
+    { searchText }: { searchText: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getUsers(ctx.user.id, searchText);
+  },
   isUsernameExist: async (_: any, { username }: { username: string }) =>
     await UserService.isUsernameExist(username),
   isEmailExist: async (_: any, { email }: { email: string }) =>

@@ -1,8 +1,9 @@
-import { Chat, ChatMemberRole, Message } from "@prisma/client";
+import { Chat, ChatActivity, ChatMemberRole, Message } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
+import UserService from "./user";
 
 export interface CreateMessagePayload {
-  targetUserIds: string[];
+  targetUserIds: string[] | null;
   content: string;
   chatId?: string;
 }
@@ -12,9 +13,10 @@ interface ChatMetaData {
   isGroupChat: boolean;
 }
 
-interface GroupedMessages {
+interface ChatHistory {
   date: string;
   messages: Message[];
+  activities: ChatActivity[];
 }
 
 export class ChatService {
@@ -25,20 +27,22 @@ export class ChatService {
   ) {
     const totalMemberIds = [sessionUserId, ...targetUserIds];
 
-    if (!metaData) {
+    console.log("totalMembersId -", totalMemberIds);
+    console.log("metaData -", metaData);
+
+    if (!metaData || !metaData.isGroupChat) {
       const chat = await prismaClient.chat.findFirst({
         where: {
+          isGroupChat: false,
           AND: totalMemberIds.map((memberId) => ({
             members: { some: { userId: memberId } },
           })),
         },
       });
-      if (chat) return chat;
       // console.log("chat -", chat);
-    }
+      if (chat) return chat;
 
-    // create chat
-    if (!metaData)
+      // create chat
       return prismaClient.chat.create({
         data: {
           creator: { connect: { id: sessionUserId } },
@@ -49,6 +53,15 @@ export class ChatService {
           },
         },
       });
+    }
+
+    const chat = await prismaClient.chat.findFirst({
+      where: {
+        name: metaData.chatName,
+      },
+    });
+    // console.log("chat -", chat);
+    if (chat) throw new Error("Group already exists");
 
     return prismaClient.chat.create({
       data: {
@@ -68,6 +81,33 @@ export class ChatService {
     });
   }
 
+  public static async getChat(sessionUserId: string, targetUserId: string) {
+    try {
+      const chat = await prismaClient.chat.findFirst({
+        where: {
+          isGroupChat: false,
+          AND: [
+            { members: { some: { userId: sessionUserId } } },
+            { members: { some: { userId: targetUserId } } },
+          ],
+        },
+        include: {
+          members: {
+            where: { userId: { not: sessionUserId } },
+            include: { user: true },
+          },
+          creator: true,
+        },
+      });
+      // console.log("chat -", chat);
+      // console.log("user -", chat?.members[0].user);
+      if (!chat) return null;
+      return { ...chat, members: chat?.members.map((x) => x.user) };
+    } catch (err) {
+      return err;
+    }
+  }
+
   public static async createGroup(
     sessionUserId: string,
     name: string,
@@ -84,18 +124,89 @@ export class ChatService {
     }
   }
 
-  public static async addUsersToGroup(
+  public static async renameGroup(
+    sessionUserId: string,
+    chatId: string,
+    name: string
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: {
+          id: chatId,
+          isGroupChat: true,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
+        data: { name },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getAvailableMembers(
+    sessionUserId: string,
+    chatId: string,
+    searchText: string
+  ) {
+    try {
+      const result = await prismaClient.chatMembership.findMany({
+        where: { chatId, NOT: { userId: sessionUserId } },
+      });
+      const targetMemberIds = result.map((x) => x.userId);
+
+      return UserService.getUsersWithout(
+        sessionUserId,
+        targetMemberIds,
+        searchText
+      );
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async addMembersToGroup(
     sessionUserId: string,
     chatId: string,
     targetUserIds: string[]
   ) {
     try {
+      // await prismaClient.chat.update({
+      //   where: {
+      //     id: chatId,
+      //     members: {
+      //       some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+      //     },
+      //   },
+      //   data: {
+      //     members: {
+      //       create: targetUserIds.map((memberId) => ({
+      //         user: { connect: { id: memberId } },
+      //       })),
+      //     },
+      //   },
+      // });
+
       await prismaClient.chat.update({
-        where: { id: chatId, creatorId: sessionUserId },
+        where: {
+          id: chatId,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
         data: {
           members: {
             create: targetUserIds.map((memberId) => ({
               user: { connect: { id: memberId } },
+            })),
+          },
+          activites: {
+            create: targetUserIds.map((memberId) => ({
+              type: "MEMBER_ADDED",
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: memberId } },
             })),
           },
         },
@@ -188,71 +299,111 @@ export class ChatService {
     sessionUserId: string,
     payload: CreateMessagePayload
   ) {
-    // console.log("session user -", sessionUserId);
-    // console.log("payload -", payload);
+    console.log("session user -", sessionUserId);
+    console.log("payload -", payload);
 
     const { content, targetUserIds, chatId } = payload;
     let chat: Chat | null = null;
 
     try {
-      if (!chatId)
+      if (!chatId && targetUserIds)
         chat = await ChatService.findOrCreateChat(sessionUserId, targetUserIds);
 
-      await prismaClient.message.create({
-        data: {
-          content,
-          sender: { connect: { id: sessionUserId } },
-          chat: {
-            connect: {
-              id: chatId ? chatId : chat?.id,
-            },
-          },
-        },
-      });
-
       await prismaClient.chat.update({
-        where: { id: chatId ? chatId : chat?.id },
+        where: {
+          id: chatId ? chatId : chat?.id,
+          members: { some: { userId: sessionUserId } },
+        },
         data: {
+          messages: {
+            create: [{ content, sender: { connect: { id: sessionUserId } } }],
+          },
           updatedAt: new Date(Date.now()),
         },
       });
 
-      return true;
+      return chat;
     } catch (err) {
       return err;
     }
   }
 
-  public static async getMessages(sessionUserId: string, chatId: string) {
+  public static async getChatHistory(sessionUserId: string, chatId: string) {
     try {
-      const result = await prismaClient.message.findMany({
-        where: {
-          chatId,
-          chat: { members: { some: { userId: sessionUserId } } },
+      const result = await prismaClient.chat.findUnique({
+        where: { id: chatId, members: { some: { userId: sessionUserId } } },
+        include: {
+          messages: {
+            orderBy: { createdAt: "desc" },
+            include: { sender: true },
+          },
+          activites: {
+            orderBy: { createdAt: "desc" },
+            include: { user: true, targetUser: true },
+          },
         },
-        include: { sender: true },
-        orderBy: { createdAt: "desc" },
       });
 
-      const groupedMessages = result.reduce(
-        (acc: GroupedMessages[], message) => {
-          const createdAtDate = new Date(message.createdAt).toDateString();
+      const items = [...result!.messages, ...result!.activites];
+      items.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+      // console.log("items -", items);
 
-          const groupedMessage = acc.find((x) => x.date === createdAtDate);
-          if (!groupedMessage)
-            acc.push({ date: createdAtDate, messages: [message] });
-          else groupedMessage.messages.push(message);
+      const chatHistory = items.reduce((acc: ChatHistory[], curr: any) => {
+        const createdAtDate = new Date(curr.createdAt).toDateString();
 
-          return acc;
-        },
-        []
-      );
+        const item = acc.find((x: any) => x.date === createdAtDate);
+        if (!item) {
+          if (curr.type)
+            acc.push({ date: createdAtDate, messages: [], activities: [curr] });
+          else
+            acc.push({ date: createdAtDate, messages: [curr], activities: [] });
+        } else {
+          if (curr.type) item.activities.push(curr);
+          else item.messages.push(curr);
+        }
 
-      return groupedMessages;
+        return acc;
+      }, []);
+
+      console.log("chatHistory -", chatHistory);
+      console.log("activity -", chatHistory[0].activities);
+
+      return chatHistory;
     } catch (err) {
       return err;
     }
   }
+
+  // public static async getChatHistory(sessionUserId: string, chatId: string) {
+  //   try {
+  //     const result = await prismaClient.message.findMany({
+  //       where: {
+  //         chatId,
+  //         chat: { members: { some: { userId: sessionUserId } } },
+  //       },
+  //       include: { sender: true },
+  //       orderBy: { createdAt: "desc" },
+  //     });
+
+  //     const groupedMessages = result.reduce(
+  //       (acc: GroupedMessages[], message) => {
+  //         const createdAtDate = new Date(message.createdAt).toDateString();
+
+  //         const groupedMessage = acc.find((x) => x.date === createdAtDate);
+  //         if (!groupedMessage)
+  //           acc.push({ date: createdAtDate, messages: [message] });
+  //         else groupedMessage.messages.push(message);
+
+  //         return acc;
+  //       },
+  //       []
+  //     );
+
+  //     return groupedMessages;
+  //   } catch (err) {
+  //     return err;
+  //   }
+  // }
 
   public static async getLatestMessage(sessionUserId: string, chatId: string) {
     try {
@@ -262,7 +413,11 @@ export class ChatService {
           chat: { members: { some: { userId: sessionUserId } } },
         },
         orderBy: { createdAt: "desc" },
-        include: { sender: { select: { firstName: true, username: true } } },
+        include: {
+          sender: {
+            select: { firstName: true, username: true, profileImageURL: true },
+          },
+        },
       });
     } catch (err) {
       return err;

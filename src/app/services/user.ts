@@ -139,8 +139,12 @@ class UserService {
   }
 
   private static async signInWithEmailAndPassword(inputUser: any) {
+    console.log("input user -", inputUser);
+
     const { email, password } = inputUser;
     let user = await UserService.getUserByEmail(email);
+
+    console.log("user -", user);
 
     if (!user || !user.password) {
       throw new Error("Credentials not found");
@@ -281,7 +285,9 @@ class UserService {
 
   public static async getUserById(userId: string) {
     try {
-      return prismaClient.user.findUnique({ where: { id: userId } });
+      return await prismaClient.user.findUnique({
+        where: { id: userId },
+      });
     } catch (err) {
       return err;
     }
@@ -301,8 +307,91 @@ class UserService {
 
   public static async getAllUsers(sessionUserId: string) {
     try {
-      const result = await prismaClient.user.findMany();
-      return result.filter((user) => user.id !== sessionUserId);
+      return await prismaClient.user.findMany({
+        where: { NOT: { id: sessionUserId } },
+      });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getUsers(sessionUserId: string, searchText: string) {
+    try {
+      if (searchText.length === 0) return [];
+
+      return await prismaClient.user.findMany({
+        where: {
+          NOT: { id: sessionUserId },
+          OR: [
+            {
+              firstName: {
+                contains:
+                  searchText.length > 1
+                    ? searchText.slice(0, 1).toUpperCase() + searchText.slice(1)
+                    : searchText,
+              },
+            },
+            {
+              lastName: {
+                contains:
+                  searchText.length > 1
+                    ? searchText.slice(0, 1).toUpperCase() + searchText.slice(1)
+                    : searchText,
+              },
+            },
+            {
+              username:
+                searchText.length > 1
+                  ? { equals: searchText }
+                  : { contains: searchText },
+            },
+          ],
+        },
+      });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getUsersWithout(
+    sessionUserId: string,
+    targetUserIds: string[],
+    searchText: string
+  ) {
+    try {
+      if (searchText.length === 0) return [];
+
+      return await prismaClient.user.findMany({
+        where: {
+          AND: [sessionUserId, ...targetUserIds].map((memberId) => ({
+            NOT: { id: memberId },
+          })),
+          OR: [
+            {
+              firstName: {
+                contains:
+                  searchText.length > 1
+                    ? searchText.slice(0, 1).toUpperCase() + searchText.slice(1)
+                    : searchText,
+              },
+            },
+            {
+              lastName: {
+                contains:
+                  searchText.length > 1
+                    ? searchText.slice(0, 1).toUpperCase() + searchText.slice(1)
+                    : searchText,
+              },
+            },
+            {
+              username:
+                searchText.length > 1
+                  ? { equals: searchText }
+                  : { contains: searchText },
+            },
+          ],
+        },
+      });
     } catch (err) {
       return err;
     }

@@ -7,13 +7,21 @@ const queries = {
     if (!ctx || !ctx.user?.id) return null;
     return await ChatService.getChats(ctx.user.id);
   },
-  getChatMessages: async (
+  getChat: async (
+    _: any,
+    { targetUserId }: { targetUserId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.getChat(ctx.user.id, targetUserId);
+  },
+  getChatHistory: async (
     _: any,
     { chatId }: { chatId: string },
     ctx: GraphqlContext
   ) => {
     if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getMessages(ctx.user.id, chatId);
+    return await ChatService.getChatHistory(ctx.user.id, chatId);
   },
   getChatMembers: async (
     _: any,
@@ -22,6 +30,18 @@ const queries = {
   ) => {
     if (!ctx || !ctx.user?.id) return null;
     return await ChatService.getChatMembers(ctx.user.id, chatId);
+  },
+  getAvailableMembers: async (
+    _: any,
+    { chatId, searchText }: { chatId: string; searchText: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.getAvailableMembers(
+      ctx.user.id,
+      chatId,
+      searchText
+    );
   },
 };
 
@@ -42,17 +62,25 @@ const mutations = {
     if (!ctx || !ctx.user?.id) return null;
     return await ChatService.createGroup(ctx.user.id, name, targetUserIds);
   },
-  addUsersToGroup: async (
+  addMembersToGroup: async (
     _: any,
     { chatId, targetUserIds }: { chatId: string; targetUserIds: string[] },
     ctx: GraphqlContext
   ) => {
     if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.addUsersToGroup(
+    return await ChatService.addMembersToGroup(
       ctx.user.id,
       chatId,
       targetUserIds
     );
+  },
+  renameGroup: async (
+    _: any,
+    { chatId, name }: { chatId: string; name: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.renameGroup(ctx.user.id, chatId, name);
   },
 };
 

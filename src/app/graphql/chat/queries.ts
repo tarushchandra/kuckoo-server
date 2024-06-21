@@ -1,5 +1,8 @@
 export const queries = `#graphql
     getChats: [Chat]
-    getChatMessages(chatId: String!): [GroupedMessages]!
+    getChat(targetUserId: String!): Chat
+    getChatHistory(chatId: String!): [ChatHistory]
     getChatMembers(chatId: String!): [ChatMembership]!
+
+    getAvailableMembers(chatId: String!, searchText: String!): [User]!
 `;

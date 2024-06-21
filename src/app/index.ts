@@ -20,6 +20,8 @@ async function initApp() {
         const authHeader = req.headers["authorization"];
         const token = authHeader?.split(" ")[1];
 
+        // console.log("token -", token);
+
         try {
           return {
             user: token ? await UserService.decodeJwtToken(token) : null,

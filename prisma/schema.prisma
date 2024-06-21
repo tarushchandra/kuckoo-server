@@ -8,6 +8,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -36,6 +37,8 @@ model User {
 
   chats Chat[]
   chatMemberships ChatMembership[]
+  initiatedChatActivities ChatActivity[] @relation("source-user")
+  targetedChatActivities ChatActivity[] @relation("target-user")
   sentMessages Message[] @relation("sender")
 }
 
@@ -170,6 +173,7 @@ model Chat {
 
   creator User @relation(fields: [creatorId], references: [id])
   members ChatMembership[]
+  activites ChatActivity[]
   messages Message[]
 }
 
@@ -189,6 +193,25 @@ model ChatMembership {
   user User @relation(fields: [userId], references: [id])
   
   @@id([chatId, userId])
+}
+
+enum ChatActivityType {
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MADE_ADMIN
+}
+
+model ChatActivity {
+  id String @id @default(cuid())
+  type ChatActivityType
+  chatId String @map("chat_id")
+  userId String @map("user_id")
+  targetUserId String @map("target_user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chat Chat @relation(fields: [chatId], references: [id])
+  user User @relation("source-user", fields: [userId], references: [id])
+  targetUser User @relation("target-user",fields: [targetUserId], references: [id])
 }
 
 model Message {

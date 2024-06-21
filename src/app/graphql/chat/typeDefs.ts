@@ -23,6 +23,21 @@ export const typeDefs = `#graphql
         role: ChatMemberRole
     }
 
+    enum ChatActivityType {
+        MEMBER_ADDED,
+        MEMBER_REMOVED,
+        MADE_ADMIN
+    }
+
+    type ChatActivity {
+        id: ID!
+        type: ChatActivityType
+        chat: Chat
+        user: User
+        targetUser: User
+        createdAt: String
+    }
+
     type Message {
         id: ID
         content: String
@@ -30,13 +45,16 @@ export const typeDefs = `#graphql
         createdAt: String
     }
 
-    type GroupedMessages {
+    type ChatHistory {
         date: String!
-        messages: [Message]!
+        messages: [Message]
+        activities: [ChatActivity]
     }
 
+    
+
     input CreateMessagePayload {
-        targetUserIds: [String]!
+        targetUserIds: [String]
         content: String!
         chatId: String
     }
