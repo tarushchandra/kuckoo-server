@@ -15,7 +15,11 @@ interface ChatMetaData {
 
 interface ChatHistory {
   date: string;
-  messages: Message[];
+  messages: {
+    unseenMessages: Message[];
+    seenMessages: Message[];
+    sessionUserMessages: Message[];
+  };
   activities: ChatActivity[];
 }
 
@@ -138,7 +142,19 @@ export class ChatService {
             some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
           },
         },
-        data: { name },
+        data: {
+          name,
+          activites: {
+            create: {
+              type: "CHAT_RENAMED",
+              metaData: {
+                chatName: name,
+              },
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: sessionUserId } },
+            },
+          },
+        },
       });
       return true;
     } catch (err) {
@@ -173,22 +189,6 @@ export class ChatService {
     targetUserIds: string[]
   ) {
     try {
-      // await prismaClient.chat.update({
-      //   where: {
-      //     id: chatId,
-      //     members: {
-      //       some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
-      //     },
-      //   },
-      //   data: {
-      //     members: {
-      //       create: targetUserIds.map((memberId) => ({
-      //         user: { connect: { id: memberId } },
-      //       })),
-      //     },
-      //   },
-      // });
-
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -217,6 +217,131 @@ export class ChatService {
     }
   }
 
+  public static async removeMemberFromGroup(
+    sessionUserId: string,
+    chatId: string,
+    targetUserId: string
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: {
+          id: chatId,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
+        data: {
+          members: {
+            delete: { chatId_userId: { chatId, userId: targetUserId } },
+          },
+          activites: {
+            create: {
+              type: "MEMBER_REMOVED",
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: targetUserId } },
+            },
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async makeGroupAdmin(
+    sessionUserId: string,
+    chatId: string,
+    targetUserId: string
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: {
+          id: chatId,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
+        data: {
+          members: {
+            update: {
+              where: { chatId_userId: { chatId, userId: targetUserId } },
+              data: { role: "ADMIN" },
+            },
+          },
+          activites: {
+            create: {
+              type: "ADMIN_ADDED",
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: targetUserId } },
+            },
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async removeGroupAdmin(
+    sessionUserId: string,
+    chatId: string,
+    targetUserId: string
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: {
+          id: chatId,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
+        data: {
+          members: {
+            update: {
+              where: { chatId_userId: { chatId, userId: targetUserId } },
+              data: { role: "MEMBER" },
+            },
+          },
+          activites: {
+            create: {
+              type: "ADMIN_REMOVED",
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: targetUserId } },
+            },
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async leaveGroup(sessionUserId: string, chatId: string) {
+    try {
+      await prismaClient.chat.update({
+        where: { id: chatId, members: { some: { userId: sessionUserId } } },
+        data: {
+          members: {
+            delete: { chatId_userId: { chatId, userId: sessionUserId } },
+          },
+          activites: {
+            create: {
+              type: "MEMBER_LEFT",
+              user: { connect: { id: sessionUserId } },
+              targetUser: { connect: { id: sessionUserId } },
+            },
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
   public static async getChats(sessionUserId: string) {
     try {
       const result = await prismaClient.chat.findMany({
@@ -232,6 +357,9 @@ export class ChatService {
         },
         orderBy: { updatedAt: "desc" },
       });
+
+      // console.log("chats -", result);
+      // console.log("message -", result[0].messages[0]);
 
       return result.map((chat) => ({
         ...chat,
@@ -293,6 +421,112 @@ export class ChatService {
     }
   }
 
+  public static async getChatHistory(sessionUserId: string, chatId: string) {
+    try {
+      const result = await prismaClient.chat.findUnique({
+        where: { id: chatId, members: { some: { userId: sessionUserId } } },
+        include: {
+          messages: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              sender: true,
+              seenBy: { select: { id: true } },
+            },
+          },
+          activites: {
+            orderBy: { createdAt: "desc" },
+            include: { user: true, targetUser: true },
+          },
+        },
+      });
+
+      // console.log("Result -", result);
+      // console.log("seenBy -", result?.messages[0].seenBy);
+
+      const items = [...result!.messages, ...result!.activites];
+      items.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+
+      // console.log("items -", items);
+
+      const chatHistory = items.reduce((acc: ChatHistory[], curr: any) => {
+        const createdAtDate = new Date(curr.createdAt).toDateString();
+
+        const item = acc.find((x: any) => x.date === createdAtDate);
+        const isSeen = curr.seenBy.find(
+          (user: any) => user.id === sessionUserId
+        );
+
+        if (!item) {
+          if (curr.type) {
+            acc.push({
+              date: createdAtDate,
+              messages: {
+                unseenMessages: [],
+                seenMessages: [],
+                sessionUserMessages: [],
+              },
+              activities: [curr],
+            });
+            return acc;
+          }
+
+          if (curr.sender.id === sessionUserId)
+            acc.push({
+              date: createdAtDate,
+              messages: {
+                seenMessages: [],
+                unseenMessages: [],
+                sessionUserMessages: [{ ...curr, seenBy: curr.seenBy }],
+              },
+              activities: [],
+            });
+          else if (isSeen) {
+            acc.push({
+              date: createdAtDate,
+              messages: {
+                seenMessages: [curr],
+                unseenMessages: [],
+                sessionUserMessages: [],
+              },
+              activities: [],
+            });
+          } else
+            acc.push({
+              date: createdAtDate,
+              messages: {
+                seenMessages: [],
+                unseenMessages: [curr],
+                sessionUserMessages: [],
+              },
+              activities: [],
+            });
+          return acc;
+        }
+
+        if (curr.type) {
+          item.activities.push(curr);
+          return acc;
+        }
+
+        if (curr.sender.id === sessionUserId)
+          item.messages.sessionUserMessages.push({
+            ...curr,
+            seenBy: curr.seenBy,
+          });
+        else if (isSeen) item.messages.seenMessages.push(curr);
+        else item.messages.unseenMessages.push(curr);
+
+        return acc;
+      }, []);
+
+      // console.log("chatHistory -", chatHistory);
+
+      return chatHistory;
+    } catch (err) {
+      return err;
+    }
+  }
+
   // ---------------------------------------------------------------------------------
 
   public static async createMessage(
@@ -309,7 +543,7 @@ export class ChatService {
       if (!chatId && targetUserIds)
         chat = await ChatService.findOrCreateChat(sessionUserId, targetUserIds);
 
-      await prismaClient.chat.update({
+      const updatedChat = await prismaClient.chat.update({
         where: {
           id: chatId ? chatId : chat?.id,
           members: { some: { userId: sessionUserId } },
@@ -320,90 +554,25 @@ export class ChatService {
           },
           updatedAt: new Date(Date.now()),
         },
-      });
-
-      return chat;
-    } catch (err) {
-      return err;
-    }
-  }
-
-  public static async getChatHistory(sessionUserId: string, chatId: string) {
-    try {
-      const result = await prismaClient.chat.findUnique({
-        where: { id: chatId, members: { some: { userId: sessionUserId } } },
-        include: {
+        select: {
           messages: {
+            select: { id: true },
             orderBy: { createdAt: "desc" },
-            include: { sender: true },
-          },
-          activites: {
-            orderBy: { createdAt: "desc" },
-            include: { user: true, targetUser: true },
+            take: 1,
           },
         },
       });
 
-      const items = [...result!.messages, ...result!.activites];
-      items.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
-      // console.log("items -", items);
+      console.log("updated chat -", updatedChat);
 
-      const chatHistory = items.reduce((acc: ChatHistory[], curr: any) => {
-        const createdAtDate = new Date(curr.createdAt).toDateString();
-
-        const item = acc.find((x: any) => x.date === createdAtDate);
-        if (!item) {
-          if (curr.type)
-            acc.push({ date: createdAtDate, messages: [], activities: [curr] });
-          else
-            acc.push({ date: createdAtDate, messages: [curr], activities: [] });
-        } else {
-          if (curr.type) item.activities.push(curr);
-          else item.messages.push(curr);
-        }
-
-        return acc;
-      }, []);
-
-      console.log("chatHistory -", chatHistory);
-      console.log("activity -", chatHistory[0].activities);
-
-      return chatHistory;
+      return {
+        id: updatedChat.messages[0].id,
+        chat,
+      };
     } catch (err) {
       return err;
     }
   }
-
-  // public static async getChatHistory(sessionUserId: string, chatId: string) {
-  //   try {
-  //     const result = await prismaClient.message.findMany({
-  //       where: {
-  //         chatId,
-  //         chat: { members: { some: { userId: sessionUserId } } },
-  //       },
-  //       include: { sender: true },
-  //       orderBy: { createdAt: "desc" },
-  //     });
-
-  //     const groupedMessages = result.reduce(
-  //       (acc: GroupedMessages[], message) => {
-  //         const createdAtDate = new Date(message.createdAt).toDateString();
-
-  //         const groupedMessage = acc.find((x) => x.date === createdAtDate);
-  //         if (!groupedMessage)
-  //           acc.push({ date: createdAtDate, messages: [message] });
-  //         else groupedMessage.messages.push(message);
-
-  //         return acc;
-  //       },
-  //       []
-  //     );
-
-  //     return groupedMessages;
-  //   } catch (err) {
-  //     return err;
-  //   }
-  // }
 
   public static async getLatestMessage(sessionUserId: string, chatId: string) {
     try {
@@ -419,6 +588,92 @@ export class ChatService {
           },
         },
       });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async setMessagesAsSeen(
+    sessionUserId: string,
+    chatId: string,
+    messageIds: string[]
+  ) {
+    try {
+      await prismaClient.chat.update({
+        where: { id: chatId, members: { some: { userId: sessionUserId } } },
+        data: {
+          messages: {
+            update: messageIds.map((messageId) => ({
+              where: {
+                id: messageId,
+                AND: [
+                  { seenBy: { none: { id: sessionUserId } } },
+                  { senderId: { not: sessionUserId } },
+                ],
+              },
+              data: { seenBy: { connect: { id: sessionUserId } } },
+            })),
+          },
+        },
+      });
+      return true;
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getUnseenChatsCount(sessionUserId: string) {
+    try {
+      return await prismaClient.chat.count({
+        where: {
+          members: { some: { userId: sessionUserId } },
+          messages: {
+            some: {
+              AND: [
+                { seenBy: { none: { id: sessionUserId } } },
+                { senderId: { not: sessionUserId } },
+              ],
+            },
+          },
+        },
+      });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getUnseenMessagesCount(
+    sessionUserId: string,
+    chatId: string
+  ) {
+    try {
+      return await prismaClient.message.count({
+        where: {
+          chatId,
+          AND: [
+            { seenBy: { none: { id: sessionUserId } } },
+            { senderId: { not: sessionUserId } },
+          ],
+        },
+      });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getPeopleWithMessageSeen(
+    sessionUserId: string,
+    messageId: string
+  ) {
+    try {
+      const result = await prismaClient.message.findUnique({
+        where: {
+          id: messageId,
+          chat: { members: { some: { userId: sessionUserId } } },
+        },
+        include: { seenBy: true },
+      });
+      return result?.seenBy;
     } catch (err) {
       return err;
     }

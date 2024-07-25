@@ -40,6 +40,7 @@ model User {
   initiatedChatActivities ChatActivity[] @relation("source-user")
   targetedChatActivities ChatActivity[] @relation("target-user")
   sentMessages Message[] @relation("sender")
+  seenMessages Message[] @relation("seen-messages")
 }
 
 // --------------------------------------------------------------------------
@@ -198,7 +199,10 @@ model ChatMembership {
 enum ChatActivityType {
   MEMBER_ADDED
   MEMBER_REMOVED
-  MADE_ADMIN
+  ADMIN_ADDED
+  ADMIN_REMOVED
+  MEMBER_LEFT
+  CHAT_RENAMED
 }
 
 model ChatActivity {
@@ -208,7 +212,8 @@ model ChatActivity {
   userId String @map("user_id")
   targetUserId String @map("target_user_id")
   createdAt DateTime @default(now()) @map("created_at")
-
+  
+  metaData Json?
   chat Chat @relation(fields: [chatId], references: [id])
   user User @relation("source-user", fields: [userId], references: [id])
   targetUser User @relation("target-user",fields: [targetUserId], references: [id])
@@ -222,6 +227,7 @@ model Message {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  seenBy User[] @relation("seen-messages")
   sender User @relation("sender", fields: [senderId], references: [id])
   chat Chat @relation(fields: [chatId], references: [id])
 }

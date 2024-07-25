@@ -43,6 +43,18 @@ const queries = {
       searchText
     );
   },
+  getUnseenChatsCount: async (_: any, {}, ctx: GraphqlContext) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.getUnseenChatsCount(ctx.user.id);
+  },
+  getPeopleWithMessageSeen: async (
+    _: any,
+    { messageId }: { messageId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.getPeopleWithMessageSeen(ctx.user.id, messageId);
+  },
 };
 
 const mutations = {
@@ -62,6 +74,14 @@ const mutations = {
     if (!ctx || !ctx.user?.id) return null;
     return await ChatService.createGroup(ctx.user.id, name, targetUserIds);
   },
+  renameGroup: async (
+    _: any,
+    { chatId, name }: { chatId: string; name: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.renameGroup(ctx.user.id, chatId, name);
+  },
   addMembersToGroup: async (
     _: any,
     { chatId, targetUserIds }: { chatId: string; targetUserIds: string[] },
@@ -74,13 +94,53 @@ const mutations = {
       targetUserIds
     );
   },
-  renameGroup: async (
+  removeMemberFromGroup: async (
     _: any,
-    { chatId, name }: { chatId: string; name: string },
+    { chatId, targetUserId }: { chatId: string; targetUserId: string },
     ctx: GraphqlContext
   ) => {
     if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.renameGroup(ctx.user.id, chatId, name);
+    return await ChatService.removeMemberFromGroup(
+      ctx.user.id,
+      chatId,
+      targetUserId
+    );
+  },
+  makeGroupAdmin: async (
+    _: any,
+    { chatId, targetUserId }: { chatId: string; targetUserId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.makeGroupAdmin(ctx.user.id, chatId, targetUserId);
+  },
+  removeGroupAdmin: async (
+    _: any,
+    { chatId, targetUserId }: { chatId: string; targetUserId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.removeGroupAdmin(
+      ctx.user.id,
+      chatId,
+      targetUserId
+    );
+  },
+  leaveGroup: async (
+    _: any,
+    { chatId }: { chatId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.leaveGroup(ctx.user.id, chatId);
+  },
+  seenBy: async (
+    _: any,
+    { chatId, messageIds }: { chatId: string; messageIds: string[] },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx || !ctx.user?.id) return null;
+    return await ChatService.setMessagesAsSeen(ctx.user.id, chatId, messageIds);
   },
 };
 
@@ -93,6 +153,10 @@ const extraResolvers = {
     totalMembersCount: async (parent: Chat, {}, ctx: GraphqlContext) => {
       if (!ctx || !ctx.user?.id) return null;
       return await ChatService.getMembersCount(ctx.user.id, parent.id);
+    },
+    unseenMessagesCount: async (parent: Chat, {}, ctx: GraphqlContext) => {
+      if (!ctx || !ctx.user?.id) return null;
+      return await ChatService.getUnseenMessagesCount(ctx.user.id, parent.id);
     },
   },
 };

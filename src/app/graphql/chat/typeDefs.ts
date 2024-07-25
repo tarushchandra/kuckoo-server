@@ -10,6 +10,7 @@ export const typeDefs = `#graphql
         members: [User]
         messages: [Message]
         latestMessage: Message
+        unseenMessagesCount: Int
     }
 
     enum ChatMemberRole {
@@ -24,9 +25,16 @@ export const typeDefs = `#graphql
     }
 
     enum ChatActivityType {
-        MEMBER_ADDED,
-        MEMBER_REMOVED,
-        MADE_ADMIN
+        MEMBER_ADDED
+        MEMBER_REMOVED
+        ADMIN_ADDED
+        ADMIN_REMOVED
+        MEMBER_LEFT
+        CHAT_RENAMED
+    }
+
+    type ChatActivityMetaData {
+        chatName: String
     }
 
     type ChatActivity {
@@ -36,6 +44,8 @@ export const typeDefs = `#graphql
         user: User
         targetUser: User
         createdAt: String
+
+        metaData: ChatActivityMetaData
     }
 
     type Message {
@@ -43,11 +53,19 @@ export const typeDefs = `#graphql
         content: String
         sender: User
         createdAt: String
+        seenBy: [User]
+        chat: Chat
+    }
+
+    type Messages {
+        unseenMessages: [Message]
+        seenMessages: [Message]
+        sessionUserMessages: [Message]
     }
 
     type ChatHistory {
         date: String!
-        messages: [Message]
+        messages: Messages
         activities: [ChatActivity]
     }
 
