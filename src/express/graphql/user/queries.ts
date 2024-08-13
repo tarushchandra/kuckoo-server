@@ -9,4 +9,5 @@ export const queries = `#graphql
     isUsernameExist(username: String!): Boolean 
     isEmailExist(email: String!): Boolean 
     isFollowing(userId: String!): Boolean
+    getUserLastSeen(userId: String!): String
 `;

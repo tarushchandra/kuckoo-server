@@ -51,6 +51,14 @@ const queries = {
     if (!ctx.user || !ctx.user.id) return null;
     return await UserService.isFollowing(ctx.user.id, userId);
   },
+  getUserLastSeen: async (
+    _: any,
+    { userId }: { userId: string },
+    ctx: GraphqlContext
+  ) => {
+    if (!ctx.user || !ctx.user.id) return null;
+    return await UserService.getLastSeenAt(userId);
+  },
 };
 
 const mutations = {

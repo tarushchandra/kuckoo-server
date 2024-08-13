@@ -7,7 +7,7 @@ import cors from "cors";
 import UserService from "./services/user";
 import { JsonWebTokenError } from "jsonwebtoken";
 
-async function initApp() {
+async function initExpressApp() {
   const app = express();
 
   app.use(express.json());
@@ -40,4 +40,4 @@ async function initApp() {
   return app;
 }
 
-export default initApp;
+export default initExpressApp;

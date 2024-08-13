@@ -8,6 +8,8 @@ export const typeDefs = `#graphql
         profileImageURL: String
         createdAt: String
 
+        lastSeenAt: String
+
         followers: [User]
         followings: [User]
         followersCount: Int

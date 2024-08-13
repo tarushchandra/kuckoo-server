@@ -786,6 +786,29 @@ class UserService {
       return err;
     }
   }
+
+  public static async setLastSeenAt(sessionUserId: string, lastSeenAt: number) {
+    try {
+      await prismaClient.user.update({
+        where: { id: sessionUserId },
+        data: { lastSeenAt: new Date(lastSeenAt) },
+      });
+    } catch (err) {
+      return err;
+    }
+  }
+
+  public static async getLastSeenAt(sessionUserId: string) {
+    try {
+      const result = await prismaClient.user.findUnique({
+        where: { id: sessionUserId },
+        select: { lastSeenAt: true },
+      });
+      return result?.lastSeenAt;
+    } catch (err) {
+      return err;
+    }
+  }
 }
 
 export default UserService;
