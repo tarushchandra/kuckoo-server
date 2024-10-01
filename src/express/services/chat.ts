@@ -533,8 +533,8 @@ export class ChatService {
     sessionUserId: string,
     payload: CreateMessagePayload
   ) {
-    console.log("session user -", sessionUserId);
-    console.log("payload -", payload);
+    // console.log("session user -", sessionUserId);
+    // console.log("payload -", payload);
 
     const { content, targetUserIds, chatId } = payload;
     let chat: Chat | null = null;
@@ -563,7 +563,7 @@ export class ChatService {
         },
       });
 
-      console.log("updated chat -", updatedChat);
+      // console.log("updated chat -", updatedChat);
 
       return {
         id: updatedChat.messages[0].id,
@@ -593,19 +593,50 @@ export class ChatService {
     }
   }
 
+  // public static async setMessagesAsSeen(
+  //   sessionUserId: string,
+  //   chatId: string,
+  //   messageIds: string[]
+  // ) {
+  //   try {
+  //     await prismaClient.chat.update({
+  //       where: { id: chatId, members: { some: { userId: sessionUserId } } },
+  //       data: {
+  //         messages: {
+  //           update: messageIds.map((messageId) => ({
+  //             where: {
+  //               id: messageId,
+  //               AND: [
+  //                 { seenBy: { none: { id: sessionUserId } } },
+  //                 { senderId: { not: sessionUserId } },
+  //               ],
+  //             },
+  //             data: { seenBy: { connect: { id: sessionUserId } } },
+  //           })),
+  //         },
+  //       },
+  //     });
+  //     return true;
+  //   } catch (err) {
+  //     return err;
+  //   }
+  // }
+
   public static async setMessagesAsSeen(
     sessionUserId: string,
     chatId: string,
-    messageIds: string[]
+    messages: any
   ) {
+    console.log("setMessagesAsSeen args -", sessionUserId, chatId, messages);
+
     try {
       await prismaClient.chat.update({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
         data: {
           messages: {
-            update: messageIds.map((messageId) => ({
+            update: messages.map((message: any) => ({
               where: {
-                id: messageId,
+                id: message.id,
                 AND: [
                   { seenBy: { none: { id: sessionUserId } } },
                   { senderId: { not: sessionUserId } },

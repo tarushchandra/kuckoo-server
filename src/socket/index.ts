@@ -3,6 +3,8 @@ import http from "http";
 import UserService from "../express/services/user";
 import { prismaClient } from "../express/clients/prisma";
 import { Message } from "@prisma/client";
+import { ChatService } from "../express/services/chat";
+import { redisClient } from "../express/clients/redis";
 
 // online users in different chats
 interface OnlineUser {
@@ -80,7 +82,7 @@ function initSocketServer(httpServer: httpServerType) {
     socket.on("message", async (data, isBinary) => {
       // console.log("message recieved -", data.toString("utf-8"));
       const message = JSON.parse(data.toString("utf-8"));
-      // console.log("message recieved -", message);
+      console.log("message recieved -", message);
 
       if (message.type === "AUTH") {
         const user = await UserService.decodeJwtToken(message.accessToken);
@@ -136,13 +138,16 @@ function initSocketServer(httpServer: httpServerType) {
       }
 
       if (message.type === "CHAT_MESSAGE") {
+        // sending the message to all connected users except the sender of the message
         rooms.get(message.chatId)?.forEach((onlineUser) => {
           if (
             onlineUser.socket.readyState === WebSocket.OPEN &&
             onlineUser.socket !== socket
           )
-            onlineUser.socket.send(data, { binary: isBinary });
+            onlineUser.socket.send(JSON.stringify(message));
         });
+
+        // sending an acknowledegement of "MESSAGE_SENT_SUCCESSFULLY" back to the sender
         socket.send(
           JSON.stringify({
             type: "CHAT_MESSAGE_IS_SENT_TO_THE_RECIPIENT",
@@ -150,26 +155,69 @@ function initSocketServer(httpServer: httpServerType) {
             messageId: message.message.id,
           })
         );
-      }
 
-      if (message.type === "USER_IS_TYPING") {
+        // ---------------
+
+        // storing message to DB
+        const storedMessage: any = await ChatService.createMessage(
+          message.message.sender.id,
+          {
+            targetUserIds: [],
+            content: message.message.content,
+            chatId: message.chatId,
+          }
+        );
+
+        // sending the actual messageId to all the users
         rooms.get(message.chatId)?.forEach((onlineUser) => {
-          if (
-            onlineUser.socket.readyState === WebSocket.OPEN &&
-            onlineUser.socket !== socket
-          )
-            onlineUser.socket.send(data, { binary: isBinary });
+          if (onlineUser.socket.readyState === WebSocket.OPEN)
+            onlineUser.socket.send(
+              JSON.stringify({
+                type: "ACTUAL_MESSAGE_ID",
+                chatId: message.chatId,
+                temporaryMessageId: message.message.id,
+                actualMessageId: storedMessage.id,
+                sender: message.message.sender,
+              })
+            );
         });
+
+        const seenMessage: any = await redisClient.get(
+          `MESSAGE_SEEN:${message.chatId}:${message.message.id}`
+        );
+        const parsedSeenMessage = JSON.parse(seenMessage);
+
+        if (parsedSeenMessage?.isSeen) {
+          await ChatService.setMessagesAsSeen(
+            parsedSeenMessage?.seenBy.id,
+            message.chatId,
+            [{ ...message.message, id: storedMessage.id }]
+          );
+
+          await redisClient.del(
+            `MESSAGE_SEEN:${message.chatId}:${message.message.id}`
+          );
+        }
       }
 
       if (message.type === "CHAT_MESSAGES_ARE_SEEN_BY_THE_RECIPIENT") {
         const { messages, chatId, seenBy } = message;
-        const senderIdToMessagesMap = new Map<string, string[]>();
 
-        messages.forEach((message: any) => {
+        const senderIdToMessagesMap = new Map<string, string[]>();
+        let isMessageWithTemporaryIdPresent = false;
+
+        messages.forEach(async (message: any) => {
           if (!senderIdToMessagesMap.has(message.sender.id))
             senderIdToMessagesMap.set(message.sender.id, []);
           senderIdToMessagesMap.get(message.sender.id)?.push(message.content);
+
+          if (typeof message.id === "number") {
+            isMessageWithTemporaryIdPresent = true;
+            await redisClient.set(
+              `MESSAGE_SEEN:${chatId}:${message.id}`,
+              JSON.stringify({ isSeen: true, seenBy })
+            );
+          }
         });
 
         for (const entry of senderIdToMessagesMap.entries()) {
@@ -187,6 +235,19 @@ function initSocketServer(httpServer: httpServerType) {
             );
           }
         }
+
+        if (!isMessageWithTemporaryIdPresent)
+          await ChatService.setMessagesAsSeen(seenBy.id, chatId, messages);
+      }
+
+      if (message.type === "USER_IS_TYPING") {
+        rooms.get(message.chatId)?.forEach((onlineUser) => {
+          if (
+            onlineUser.socket.readyState === WebSocket.OPEN &&
+            onlineUser.socket !== socket
+          )
+            onlineUser.socket.send(data, { binary: isBinary });
+        });
       }
     });
   });
