@@ -4,10 +4,6 @@ import { GraphqlContext } from "..";
 import TweetService from "../../services/tweet";
 
 const queries = {
-  getCustomUserToken: async (
-    _: any,
-    { googleToken, user }: { googleToken?: string; user?: any }
-  ) => await UserService.getCustomUserToken({ googleToken, user }),
   getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {
     if (!ctx.user || !ctx.user.id) return null;
     return await UserService.getUserById(ctx.user.id);

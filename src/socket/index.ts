@@ -92,11 +92,11 @@ function initSocketServer(httpServer: httpServerType) {
       const message = JSON.parse(data.toString("utf-8"));
       console.log("message recieved -", message);
 
-      if (message.type === "AUTH") {
-        const user = await UserService.decodeJwtToken(message.accessToken);
+      if (message.type === "CONNECTION_ESTABLISHED") {
+        const userId = message.userId;
         const chats = await prismaClient.chat.findMany({
-          where: { members: { some: { userId: user.id } } },
-          include: { members: { where: { userId: { not: user.id } } } },
+          where: { members: { some: { userId } } },
+          include: { members: { where: { userId: { not: userId } } } },
         });
 
         // sending the current user's online status to other online users
@@ -115,7 +115,7 @@ function initSocketServer(httpServer: httpServerType) {
                 onlineUser.socket.send(
                   JSON.stringify({
                     type: "USER_IS_ONLINE",
-                    userId: user.id,
+                    userId: userId,
                   } as any)
                 );
                 socket.send(
@@ -135,13 +135,13 @@ function initSocketServer(httpServer: httpServerType) {
             roomToOnlineUsersMap.set(chat.id, []);
           if (!socketToRoomsMap.has(socket)) socketToRoomsMap.set(socket, []);
 
-          roomToOnlineUsersMap.get(chat.id)?.push({ userId: user.id, socket });
+          roomToOnlineUsersMap.get(chat.id)?.push({ userId: userId, socket });
           socketToRoomsMap.get(socket)?.push(chat.id);
         });
 
         // setting the (userId -> socket && socket -> userId) map for quick retreival
-        userIdToSocketMap.set(user.id, socket);
-        socketToUserIdMap.set(socket, user.id);
+        userIdToSocketMap.set(userId, socket);
+        socketToUserIdMap.set(socket, userId);
 
         // console.log(
         //   "roomToOnlineUsersMap after connection -",

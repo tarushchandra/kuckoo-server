@@ -1,48 +1,12 @@
-import axios from "axios";
 import { prismaClient } from "../clients/prisma";
 import { NotificationType, User } from "@prisma/client";
-import JWT from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import { redisClient } from "../clients/redis";
 import { NotificationService } from "./notification";
-
-interface GoogleTokenResult {
-  iss: string;
-  azp: string;
-  aud: string;
-  sub: string;
-  email: string;
-  email_verified: string;
-  nbf: string;
-  name: string;
-  picture: string;
-  given_name: string;
-  family_name: string;
-  locale: string;
-  iat: string;
-  exp: string;
-  jti: string;
-  alg: string;
-  kid: string;
-  typ: string;
-}
-
-export interface JwtUser {
-  id: string;
-  email: string;
-  username: string;
-}
+import { AuthService, GoogleTokenResult } from "./auth";
 
 class UserService {
-  // Utility Functions
-  private static async decodeGoogleToken(googleToken: String) {
-    const URL = `https://oauth2.googleapis.com/tokeninfo?id_token=${googleToken}`;
-    const { data } = await axios.get<GoogleTokenResult>(URL);
-    return data;
-  }
-
-  // ---------------------------
-
+  // Utility functions
   private static async hashPassword(password: string, saltRounds: number) {
     return await bcrypt.hash(password, saltRounds);
   }
@@ -54,28 +18,26 @@ class UserService {
     return await bcrypt.compare(inputPassword, hashedPassword);
   }
 
-  // ---------------------------
-
-  private static async generateJwtToken(payload: User) {
-    return JWT.sign(
-      { id: payload.id, email: payload.email, username: payload.username },
-      process.env.JWT_SECRET!
-    );
+  private static async createUser(payload: any) {
+    return prismaClient.user.create({
+      data: {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        username: payload.username,
+        profileImageURL: payload.profileImageURL && payload.profileImageURL,
+        password:
+          payload.password &&
+          (await UserService.hashPassword(payload.password, 10)),
+      },
+    });
   }
 
-  public static async decodeJwtToken(token: string) {
-    return JWT.verify(token, process.env.JWT_SECRET!) as JwtUser;
-  }
-
-  // ---------------------------
-
-  private static async getUserByEmail(email: string) {
+  public static async getUserByEmail(email: string) {
     return prismaClient.user.findUnique({
       where: { email },
     });
   }
-
-  // ---------------------------
 
   public static async isUsernameExist(username: string) {
     try {
@@ -101,25 +63,8 @@ class UserService {
 
   // ---------------------------
 
-  private static async createUser(payload: any) {
-    return prismaClient.user.create({
-      data: {
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        email: payload.email,
-        username: payload.username,
-        profileImageURL: payload.profileImageURL && payload.profileImageURL,
-        password:
-          payload.password &&
-          (await UserService.hashPassword(payload.password, 10)),
-      },
-    });
-  }
-
-  // ---------------------------
-
-  private static async signInWithGoogle(googleToken: string) {
-    const decodedToken: GoogleTokenResult = await UserService.decodeGoogleToken(
+  public static async signInWithGoogle(googleToken: string) {
+    const decodedToken: GoogleTokenResult = await AuthService.decodeGoogleToken(
       googleToken
     );
     const { given_name, family_name, email, picture } = decodedToken;
@@ -138,17 +83,13 @@ class UserService {
     return user;
   }
 
-  private static async signInWithEmailAndPassword(inputUser: any) {
+  public static async signInWithEmailAndPassword(inputUser: any) {
     console.log("input user -", inputUser);
 
     const { email, password } = inputUser;
     let user = await UserService.getUserByEmail(email);
 
-    console.log("user -", user);
-
-    if (!user || !user.password) {
-      throw new Error("Credentials not found");
-    }
+    if (!user || !user.password) throw new Error("Credentials not found");
 
     const isMatch = await UserService.compareHashedPassword(
       password,
@@ -160,120 +101,9 @@ class UserService {
     return user;
   }
 
-  // -------------------------------------------------------------
-  // Social Connection Functions
-
-  public static getSessionUserAsConnection(
-    sessionUserId: string,
-    connections: User[]
-  ) {
-    for (const myConnection of connections) {
-      if (myConnection?.id === sessionUserId) return myConnection;
-    }
-  }
-
-  public static getMutualConnections(
-    sessionUserId: string,
-    connections: any[]
-  ) {
-    const mutualConnections: User[] = [];
-
-    for (const myConnection of connections) {
-      // console.log("myConnection -", myConnection);
-
-      const followersOfMyConnection = myConnection.followings.map(
-        (follow: any) => follow.follower
-      );
-      // console.log("followersOfMyConnection -", followersOfMyConnection);
-
-      for (const followerOfMyConnection of followersOfMyConnection) {
-        if (followerOfMyConnection.id !== sessionUserId) continue;
-        mutualConnections.push(myConnection);
-      }
-    }
-    return mutualConnections;
-  }
-
-  public static getRemainingConnections(
-    sessionUserId: string,
-    connections: User[],
-    mutualConnections: User[]
-  ) {
-    if (mutualConnections.length === 0)
-      return connections.filter(
-        (myConnection) => myConnection?.id !== sessionUserId
-      ) as User[];
-
-    const remainingConnections: User[] = [];
-    for (const myConnection of connections) {
-      const isMutualConnection = mutualConnections.find(
-        (mutualConnection) => myConnection?.id === mutualConnection.id
-      );
-      if (isMutualConnection) continue;
-      if (myConnection?.id === sessionUserId) continue;
-      remainingConnections.push(myConnection as User);
-    }
-    return remainingConnections;
-  }
-
-  public static getRearrangedConnectionsBasedOnSessionUser(
-    sessionUserId: string,
-    connections: User[]
-  ) {
-    // console.log("sessionUserId -", sessionUserId);
-    // console.log("connections -", connections);
-
-    const sessionUserAsConnection = UserService.getSessionUserAsConnection(
-      sessionUserId,
-      connections
-    );
-
-    // console.log("sessionUserAsConnection -", sessionUserAsConnection);
-
-    const mutualConnections = UserService.getMutualConnections(
-      sessionUserId,
-      connections
-    );
-
-    // console.log("mutualConnections -", mutualConnections);
-
-    const remainingConnections = UserService.getRemainingConnections(
-      sessionUserId,
-      connections,
-      mutualConnections
-    );
-
-    // console.log("remainingConnections -", remainingConnections);
-
-    if (!sessionUserAsConnection)
-      return [...mutualConnections, ...remainingConnections];
-    return [
-      sessionUserAsConnection,
-      ...mutualConnections,
-      ...remainingConnections,
-    ];
-  }
-
   // --------------------------------------------------------------------------------------
+
   // Service Functions (Queries and Mutations Resolvers)
-
-  public static async getCustomUserToken(payload: any) {
-    try {
-      let user: User;
-
-      if (payload.googleToken) {
-        user = await UserService.signInWithGoogle(payload.googleToken);
-      } else {
-        user = await UserService.signInWithEmailAndPassword(payload.user);
-      }
-
-      const customToken = await UserService.generateJwtToken(user);
-      return customToken;
-    } catch (err) {
-      return err;
-    }
-  }
-
   public static async signUpWithEmailAndPassword(inputUser: any) {
     try {
       await UserService.createUser(inputUser);
@@ -784,6 +614,99 @@ class UserService {
     } catch (err) {
       return err;
     }
+  }
+
+  // Social Connection Functions
+
+  public static getSessionUserAsConnection(
+    sessionUserId: string,
+    connections: User[]
+  ) {
+    for (const myConnection of connections) {
+      if (myConnection?.id === sessionUserId) return myConnection;
+    }
+  }
+
+  public static getMutualConnections(
+    sessionUserId: string,
+    connections: any[]
+  ) {
+    const mutualConnections: User[] = [];
+
+    for (const myConnection of connections) {
+      // console.log("myConnection -", myConnection);
+
+      const followersOfMyConnection = myConnection.followings.map(
+        (follow: any) => follow.follower
+      );
+      // console.log("followersOfMyConnection -", followersOfMyConnection);
+
+      for (const followerOfMyConnection of followersOfMyConnection) {
+        if (followerOfMyConnection.id !== sessionUserId) continue;
+        mutualConnections.push(myConnection);
+      }
+    }
+    return mutualConnections;
+  }
+
+  public static getRemainingConnections(
+    sessionUserId: string,
+    connections: User[],
+    mutualConnections: User[]
+  ) {
+    if (mutualConnections.length === 0)
+      return connections.filter(
+        (myConnection) => myConnection?.id !== sessionUserId
+      ) as User[];
+
+    const remainingConnections: User[] = [];
+    for (const myConnection of connections) {
+      const isMutualConnection = mutualConnections.find(
+        (mutualConnection) => myConnection?.id === mutualConnection.id
+      );
+      if (isMutualConnection) continue;
+      if (myConnection?.id === sessionUserId) continue;
+      remainingConnections.push(myConnection as User);
+    }
+    return remainingConnections;
+  }
+
+  public static getRearrangedConnectionsBasedOnSessionUser(
+    sessionUserId: string,
+    connections: User[]
+  ) {
+    // console.log("sessionUserId -", sessionUserId);
+    // console.log("connections -", connections);
+
+    const sessionUserAsConnection = UserService.getSessionUserAsConnection(
+      sessionUserId,
+      connections
+    );
+
+    // console.log("sessionUserAsConnection -", sessionUserAsConnection);
+
+    const mutualConnections = UserService.getMutualConnections(
+      sessionUserId,
+      connections
+    );
+
+    // console.log("mutualConnections -", mutualConnections);
+
+    const remainingConnections = UserService.getRemainingConnections(
+      sessionUserId,
+      connections,
+      mutualConnections
+    );
+
+    // console.log("remainingConnections -", remainingConnections);
+
+    if (!sessionUserAsConnection)
+      return [...mutualConnections, ...remainingConnections];
+    return [
+      sessionUserAsConnection,
+      ...mutualConnections,
+      ...remainingConnections,
+    ];
   }
 }
 
