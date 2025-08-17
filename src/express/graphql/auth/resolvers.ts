@@ -1,18 +1,22 @@
 import { GraphqlContext } from "..";
 import { AuthService } from "../../services/auth";
+import { AuthenticationError } from "../../utils/error";
+
+export interface signInInput {
+  googleToken?: string;
+  user?: {
+    email: string;
+    password: string;
+  };
+}
 
 const queries = {
-  getCustomUserToken: async (
-    _: any,
-    { googleToken, user }: { googleToken?: string; user?: any },
-    ctx: GraphqlContext
-  ) => await AuthService.getCustomUserToken({ googleToken, user }, ctx),
-  verifyRefreshToken: async (
-    _: any,
-    { refreshToken }: { refreshToken: string },
-    ctx: GraphqlContext
-  ) => {
-    return await AuthService.verifyRefreshToken(refreshToken, ctx);
+  getTokens: async (_: any, payload: signInInput, ctx: GraphqlContext) =>
+    await AuthService.getTokens(ctx.res, payload),
+
+  verifyRefreshToken: async (_: any, {}: any, ctx: GraphqlContext) => {
+    if (!ctx.refreshToken) throw new AuthenticationError();
+    return await AuthService.verifyRefreshToken(ctx.res, ctx.refreshToken);
   },
 };
 

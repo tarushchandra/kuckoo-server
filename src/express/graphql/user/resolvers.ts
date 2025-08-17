@@ -2,11 +2,12 @@ import { User } from "@prisma/client";
 import UserService from "../../services/user";
 import { GraphqlContext } from "..";
 import TweetService from "../../services/tweet";
+import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 
 const queries = {
   getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getUserById(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.getUserById(user.id);
   },
   getUser: async (_: any, { username }: { username: string }) => {
     console.log("getUser called -", username);
@@ -17,24 +18,24 @@ const queries = {
     { username }: { username: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getMutualFollowers(ctx.user.id, username);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.getMutualFollowers(user.id, username);
   },
   getRecommendedUsers: async (_: any, __: any, ctx: GraphqlContext) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getRecommendedUsers(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.getRecommendedUsers(user.id);
   },
   getAllUsers: async (_: any, {}: any, ctx: GraphqlContext) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getAllUsers(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.getAllUsers(user.id);
   },
   getUsers: async (
     _: any,
     { searchText }: { searchText: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.getUsers(ctx.user.id, searchText);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.getUsers(user.id, searchText);
   },
   isUsernameExist: async (_: any, { username }: { username: string }) =>
     await UserService.isUsernameExist(username),
@@ -45,15 +46,15 @@ const queries = {
     { userId }: { userId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.isFollowing(ctx.user.id, userId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.isFollowing(user.id, userId);
   },
   getUserLastSeen: async (
     _: any,
     { userId }: { userId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
+    requireAuthenticationAndGetUser(ctx);
     return await UserService.getLastSeenAt(userId);
   },
 };
@@ -62,32 +63,32 @@ const mutations = {
   createUserWithEmailAndPassword: async (_: any, { user }: { user: any }) =>
     await UserService.signUpWithEmailAndPassword(user),
   followUser: async (_: any, { to }: { to: string }, ctx: GraphqlContext) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.followUser(ctx.user?.id, to);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.followUser(user?.id, to);
   },
   unfollowUser: async (_: any, { to }: { to: string }, ctx: GraphqlContext) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.unfollowUser(ctx.user?.id, to);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.unfollowUser(user?.id, to);
   },
   removeFollower: async (
     _: any,
     { userId }: { userId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await UserService.removeFollower(ctx.user.id, userId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await UserService.removeFollower(user.id, userId);
   },
 };
 
 const extraResolvers = {
   User: {
     followers: async (parent: User, _: any, ctx: GraphqlContext) => {
-      if (!ctx.user || !ctx.user.id) return null;
-      return await UserService.getFollowers(ctx.user.id, parent.id);
+      const user = requireAuthenticationAndGetUser(ctx);
+      return await UserService.getFollowers(user.id, parent.id);
     },
     followings: async (parent: User, _: any, ctx: GraphqlContext) => {
-      if (!ctx.user || !ctx.user.id) return null;
-      return await UserService.getFollowings(ctx.user.id, parent.id);
+      const user = requireAuthenticationAndGetUser(ctx);
+      return await UserService.getFollowings(user.id, parent.id);
     },
     followersCount: async (parent: User) =>
       await UserService.getFollowersCount(parent.id),

@@ -3,6 +3,7 @@ import { GraphqlContext } from "..";
 import { NotificationService } from "../../services/notification";
 import TweetService from "../../services/tweet";
 import { TweetEngagementService } from "../../services/tweet-engagement";
+import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 
 export interface NotificationMetaData {
   tweetId?: string;
@@ -14,19 +15,19 @@ export interface NotificationMetaData {
 
 const queries = {
   getAllNotifications: async (_: any, {}: any, ctx: GraphqlContext) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await NotificationService.getAllNotifications(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await NotificationService.getAllNotifications(user.id);
   },
   getUnseenNotificationsCount: async (_: any, {}: any, ctx: GraphqlContext) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await NotificationService.getUnseenNotificationsCount(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await NotificationService.getUnseenNotificationsCount(user.id);
   },
 };
 
 const mutations = {
   setNotificationsAsSeen: async (_: any, {}: any, ctx: GraphqlContext) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await NotificationService.setNotificationsAsSeen(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await NotificationService.setNotificationsAsSeen(user.id);
   },
 };
 

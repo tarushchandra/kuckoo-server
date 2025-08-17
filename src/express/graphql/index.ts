@@ -6,10 +6,25 @@ import { Notification } from "./notification";
 import { Chat } from "./chat";
 import { Auth } from "./auth";
 import { JwtUser } from "../services/auth";
+import { GraphQLFormattedError } from "graphql";
+import { ERROR_CODES } from "../utils/error";
+import { Response } from "express";
 
 export interface GraphqlContext {
-  user?: JwtUser;
+  user?: JwtUser | null;
+  refreshToken?: string;
+  res: Response;
 }
+
+const graphqlErrorFormatter = (error: GraphQLFormattedError) => {
+  return {
+    message: error.message || "Internal server error",
+    extensions: {
+      code: error.extensions?.code || ERROR_CODES.INTERNAL_SERVER_ERROR,
+      statusCode: error.extensions?.statusCode || 500,
+    },
+  };
+};
 
 async function createApolloGraphQLServer() {
   const gqlServer = new ApolloServer<GraphqlContext>({
@@ -63,6 +78,7 @@ async function createApolloGraphQLServer() {
       ...Notification.resolvers.extraResolvers,
       ...Chat.resolvers.extraResolvers,
     },
+    formatError: graphqlErrorFormatter,
   });
 
   await gqlServer.start();

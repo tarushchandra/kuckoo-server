@@ -1,22 +1,44 @@
-import { AuthService } from "../express/services/auth";
+import {
+  ACCESS_TOKEN_COOKIE,
+  AuthService,
+  REFRESH_TOKEN_COOKIE,
+} from "../express/services/auth";
 import { Request, Response } from "express";
-
-export const ACCESS_TOKEN_COOKIE = "access_token";
-export const REFRESH_TOKEN_COOKIE = "refresh_token";
+import {
+  AuthenticationError,
+  AuthorizationError,
+} from "../express/utils/error";
+import { GraphqlContext } from "../express/graphql";
 
 export const handleAuthMiddleware = async (req: Request, res: Response) => {
   const accessToken = req.cookies[ACCESS_TOKEN_COOKIE];
   const refreshToken = req.cookies[REFRESH_TOKEN_COOKIE];
 
-  console.log("access_token -", accessToken);
-  console.log("refresh_token -", refreshToken);
-
-  if (!accessToken) return { user: null, req, res };
+  if (!accessToken) return { res, user: null, refreshToken };
 
   try {
     const user = await AuthService.decodeAccessToken(accessToken);
-    return { user, req, res };
+    return { res, user, refreshToken };
   } catch (err) {
-    throw err;
+    return { res, user: null, refreshToken };
   }
 };
+
+// utility functions to check auth status
+export function requireAuthenticationAndGetUser(ctx: GraphqlContext) {
+  if (!ctx.user || !ctx.user.id) throw new AuthenticationError();
+  return ctx.user;
+}
+
+export function requireAuthorizationAndGetUser(
+  userId: string,
+  ctx: GraphqlContext
+) {
+  const user = requireAuthenticationAndGetUser(ctx);
+  if (user.id !== userId) throw new AuthorizationError();
+  return user;
+}
+
+export function optionalAuth(ctx: GraphqlContext) {
+  return ctx.user || null;
+}

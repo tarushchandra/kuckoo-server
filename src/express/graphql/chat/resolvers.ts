@@ -1,59 +1,56 @@
 import { Chat } from "@prisma/client";
 import { GraphqlContext } from "..";
 import { ChatService, CreateMessagePayload } from "../../services/chat";
+import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 
 const queries = {
   getChats: async (_: any, {}, ctx: GraphqlContext) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getChats(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getChats(user.id);
   },
   getChat: async (
     _: any,
     { targetUserId }: { targetUserId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getChat(ctx.user.id, targetUserId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getChat(user.id, targetUserId);
   },
   getChatHistory: async (
     _: any,
     { chatId }: { chatId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getChatHistory(ctx.user.id, chatId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getChatHistory(user.id, chatId);
   },
   getChatMembers: async (
     _: any,
     { chatId }: { chatId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getChatMembers(ctx.user.id, chatId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getChatMembers(user.id, chatId);
   },
   getAvailableMembers: async (
     _: any,
     { chatId, searchText }: { chatId: string; searchText: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getAvailableMembers(
-      ctx.user.id,
-      chatId,
-      searchText
-    );
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getAvailableMembers(user.id, chatId, searchText);
   },
   getUnseenChatsCount: async (_: any, {}, ctx: GraphqlContext) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getUnseenChatsCount(ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getUnseenChatsCount(user.id);
   },
   getPeopleWithMessageSeen: async (
     _: any,
     { messageId }: { messageId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.getPeopleWithMessageSeen(ctx.user.id, messageId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.getPeopleWithMessageSeen(user.id, messageId);
   },
 };
 
@@ -63,37 +60,33 @@ const mutations = {
     { targetUserIds, name }: { targetUserIds: string[]; name: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.createGroup(ctx.user.id, name, targetUserIds);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.createGroup(user.id, name, targetUserIds);
   },
   renameGroup: async (
     _: any,
     { chatId, name }: { chatId: string; name: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.renameGroup(ctx.user.id, chatId, name);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.renameGroup(user.id, chatId, name);
   },
   addMembersToGroup: async (
     _: any,
     { chatId, targetUserIds }: { chatId: string; targetUserIds: string[] },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.addMembersToGroup(
-      ctx.user.id,
-      chatId,
-      targetUserIds
-    );
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.addMembersToGroup(user.id, chatId, targetUserIds);
   },
   removeMemberFromGroup: async (
     _: any,
     { chatId, targetUserId }: { chatId: string; targetUserId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
+    const user = requireAuthenticationAndGetUser(ctx);
     return await ChatService.removeMemberFromGroup(
-      ctx.user.id,
+      user.id,
       chatId,
       targetUserId
     );
@@ -103,36 +96,32 @@ const mutations = {
     { chatId, targetUserId }: { chatId: string; targetUserId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.makeGroupAdmin(ctx.user.id, chatId, targetUserId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.makeGroupAdmin(user.id, chatId, targetUserId);
   },
   removeGroupAdmin: async (
     _: any,
     { chatId, targetUserId }: { chatId: string; targetUserId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.removeGroupAdmin(
-      ctx.user.id,
-      chatId,
-      targetUserId
-    );
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.removeGroupAdmin(user.id, chatId, targetUserId);
   },
   leaveGroup: async (
     _: any,
     { chatId }: { chatId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.leaveGroup(ctx.user.id, chatId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.leaveGroup(user.id, chatId);
   },
   seenBy: async (
     _: any,
     { chatId, messageIds }: { chatId: string; messageIds: string[] },
     ctx: GraphqlContext
   ) => {
-    if (!ctx || !ctx.user?.id) return null;
-    return await ChatService.setMessagesAsSeen(ctx.user.id, chatId, messageIds);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await ChatService.setMessagesAsSeen(user.id, chatId, messageIds);
   },
 };
 
@@ -144,16 +133,16 @@ const extraResolvers = {
     },
 
     latestMessage: async (parent: Chat, {}, ctx: GraphqlContext) => {
-      if (!ctx || !ctx.user?.id) return null;
-      return await ChatService.getLatestMessage(ctx.user.id, parent.id);
+      const user = requireAuthenticationAndGetUser(ctx);
+      return await ChatService.getLatestMessage(user.id, parent.id);
     },
     totalMembersCount: async (parent: Chat, {}, ctx: GraphqlContext) => {
-      if (!ctx || !ctx.user?.id) return null;
-      return await ChatService.getMembersCount(ctx.user.id, parent.id);
+      const user = requireAuthenticationAndGetUser(ctx);
+      return await ChatService.getMembersCount(user.id, parent.id);
     },
     unseenMessagesCount: async (parent: Chat, {}, ctx: GraphqlContext) => {
-      if (!ctx || !ctx.user?.id) return null;
-      return await ChatService.getUnseenMessagesCount(ctx.user.id, parent.id);
+      const user = requireAuthenticationAndGetUser(ctx);
+      return await ChatService.getUnseenMessagesCount(user.id, parent.id);
     },
   },
 };

@@ -3,6 +3,7 @@ import { GraphqlContext } from "..";
 import TweetService from "../../services/tweet";
 import { TweetEngagementService } from "../../services/tweet-engagement";
 import UserService from "../../services/user";
+import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 
 export interface TweetInput {
   content?: string;
@@ -23,26 +24,25 @@ const queries = {
       limit,
       cursor,
     }: { userId: string; limit: number; cursor?: string }
-  ) => await TweetService.getTweets(userId, limit, cursor),
+  ) => {
+    return await TweetService.getTweets(userId, limit, cursor);
+  },
   getAllTweets: async () => TweetService.getAllTweets(),
   getSignedURLForUploadingImage: async (
     _: any,
     { payload }: { payload: ImageUploadInput },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.getSignedURLForUploadingTweet(
-      ctx.user.id,
-      payload
-    );
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await TweetService.getSignedURLForUploadingTweet(user.id, payload);
   },
   getPaginatedTweetsFeed: async (
     _: any,
     { limit, cursor }: { limit: number; cursor?: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.getTweetsFeed(ctx.user.id, limit, cursor);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await TweetService.getTweetsFeed(user.id, limit, cursor);
   },
 };
 
@@ -52,24 +52,24 @@ const mutations = {
     { payload }: { payload: TweetInput },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.createTweet(payload, ctx.user.id);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await TweetService.createTweet(payload, user.id);
   },
   deleteTweet: async (
     _: any,
     { tweetId }: { tweetId: string },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.deleteTweet(ctx.user.id, tweetId);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await TweetService.deleteTweet(user.id, tweetId);
   },
   updateTweet: async (
     _: any,
     { tweetId, payload }: { tweetId: string; payload: TweetInput },
     ctx: GraphqlContext
   ) => {
-    if (!ctx.user || !ctx.user.id) return null;
-    return await TweetService.updateTweet(ctx.user.id, tweetId, payload);
+    const user = requireAuthenticationAndGetUser(ctx);
+    return await TweetService.updateTweet(user.id, tweetId, payload);
   },
 };
 
