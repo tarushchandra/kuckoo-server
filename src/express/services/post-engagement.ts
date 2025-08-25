@@ -1,21 +1,21 @@
-import { Comment, NotificationType } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
 import UserService from "./user";
 import { NotificationService } from "./notification";
+import { NotificationType } from "@prisma/client";
 
-export class TweetEngagementService {
-  public static async getTweetEngagement(tweetId: string) {
+export class PostEngagementService {
+  public static async getPostEngagement(postId: string) {
     try {
-      const result = await prismaClient.tweetEngagement.findUnique({
+      const result = await prismaClient.postEngagement.findUnique({
         where: {
-          tweetId,
+          postId,
         },
         include: {
-          tweet: true,
+          post: true,
           likes: {
             include: {
               user: true,
-              tweetEngagement: { include: { tweet: true } },
+              postEngagement: { include: { post: true } },
             },
           },
         },
@@ -27,59 +27,58 @@ export class TweetEngagementService {
     }
   }
 
-  private static async createTweetEngagement(tweetId: string) {
-    return prismaClient.tweetEngagement.create({
+  private static async createPostEngagement(postId: string) {
+    return prismaClient.postEngagement.create({
       data: {
-        tweet: { connect: { id: tweetId } },
+        post: { connect: { id: postId } },
       },
     });
   }
 
-  private static async deleteTweetEngagement(tweetId: string) {
-    return prismaClient.tweetEngagement.delete({
-      where: { tweetId },
+  private static async deletePostEngagement(postId: string) {
+    return prismaClient.postEngagement.delete({
+      where: { postId },
     });
   }
 
-  private static async checkOrCreateTweetEngagement(tweetId: string) {
-    const foundTweetEngagement =
-      await TweetEngagementService.getTweetEngagement(tweetId);
-    if (!foundTweetEngagement)
-      await TweetEngagementService.createTweetEngagement(tweetId);
+  private static async checkOrCreatePostEngagement(postId: string) {
+    const foundPostEngagement = await PostEngagementService.getPostEngagement(
+      postId
+    );
+    if (!foundPostEngagement)
+      await PostEngagementService.createPostEngagement(postId);
   }
 
-  private static async checkOrDeleteTweetEngagement(tweetId: string) {
-    const likesCount = await TweetEngagementService.getLikesCount(tweetId);
-    const commentsCount = await TweetEngagementService.getCommentsCount(
-      tweetId
-    );
+  private static async checkOrDeletePostEngagement(postId: string) {
+    const likesCount = await PostEngagementService.getLikesCount(postId);
+    const commentsCount = await PostEngagementService.getCommentsCount(postId);
     if (likesCount === 0 && commentsCount === 0)
-      await TweetEngagementService.deleteTweetEngagement(tweetId);
+      await PostEngagementService.deletePostEngagement(postId);
   }
 
   // ----------------------------------------------------------------------------------
 
-  public static async likeTweet(sessionUserId: string, tweetId: string) {
+  public static async likePost(sessionUserId: string, postId: string) {
     try {
-      await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
-      const tweetLike = await prismaClient.tweetLike.create({
+      await PostEngagementService.checkOrCreatePostEngagement(postId);
+      const postLike = await prismaClient.postLike.create({
         data: {
           user: { connect: { id: sessionUserId } },
-          tweetEngagement: { connect: { tweetId } },
+          postEngagement: { connect: { postId } },
         },
         include: {
-          tweetEngagement: {
-            include: { tweet: true },
+          postEngagement: {
+            include: { post: true },
           },
         },
       });
 
       // create notification
       await NotificationService.createNotification(
-        NotificationType.LIKE_ON_TWEET,
+        NotificationType.LIKE_ON_POST,
         sessionUserId,
-        tweetLike.tweetEngagement.tweet.authorId,
-        { tweetId }
+        postLike.postEngagement.post.authorId,
+        { postId }
       );
 
       return true;
@@ -88,22 +87,22 @@ export class TweetEngagementService {
     }
   }
 
-  public static async dislikeTweet(sessionUserId: string, tweetId: string) {
+  public static async dislikePost(sessionUserId: string, postId: string) {
     try {
-      const tweetLike = await prismaClient.tweetLike.delete({
+      const postLike = await prismaClient.postLike.delete({
         where: {
-          userId_tweetId: { tweetId, userId: sessionUserId },
+          userId_postId: { postId, userId: sessionUserId },
         },
-        include: { tweetEngagement: { include: { tweet: true } } },
+        include: { postEngagement: { include: { post: true } } },
       });
-      await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+      await PostEngagementService.checkOrDeletePostEngagement(postId);
 
       // delete notification
       await NotificationService.deleteNotification(
-        NotificationType.LIKE_ON_TWEET,
+        NotificationType.LIKE_ON_POST,
         sessionUserId,
-        tweetLike.tweetEngagement.tweet.authorId,
-        { tweetId }
+        postLike.postEngagement.post.authorId,
+        { postId }
       );
       return true;
     } catch (err) {
@@ -111,10 +110,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async isLikeExist(userId: string, tweetId: string) {
+  public static async isLikeExist(userId: string, postId: string) {
     try {
-      const result = await prismaClient.tweetLike.findUnique({
-        where: { userId_tweetId: { tweetId, userId } },
+      const result = await prismaClient.postLike.findUnique({
+        where: { userId_postId: { postId, userId } },
       });
       if (!result) return false;
       return true;
@@ -123,10 +122,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getLikes(sessionUserId: string, tweetId: string) {
+  public static async getLikes(sessionUserId: string, postId: string) {
     try {
-      const result = await prismaClient.tweetLike.findMany({
-        where: { tweetId },
+      const result = await prismaClient.postLike.findMany({
+        where: { postId },
         include: {
           user: { include: { followings: { include: { follower: true } } } },
         },
@@ -145,10 +144,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getMutualLikers(sessionUserId: string, tweetId: string) {
+  public static async getMutualLikers(sessionUserId: string, postId: string) {
     try {
-      const result = await prismaClient.tweetLike.findMany({
-        where: { tweetId },
+      const result = await prismaClient.postLike.findMany({
+        where: { postId },
         include: {
           user: { include: { followings: { include: { follower: true } } } },
         },
@@ -166,10 +165,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getLikesCount(tweetId: string) {
+  public static async getLikesCount(postId: string) {
     try {
-      const result = await prismaClient.tweetLike.findMany({
-        where: { tweetId },
+      const result = await prismaClient.postLike.findMany({
+        where: { postId },
       });
       return result.length;
     } catch (err) {
@@ -179,33 +178,33 @@ export class TweetEngagementService {
 
   // ----------------------------------------------------------------------------------
 
-  public static async createCommentOnTweet(
+  public static async createCommentOnPost(
     sessionUserId: string,
     content: string,
-    tweetId: string
+    postId: string
   ) {
     try {
-      await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
+      await PostEngagementService.checkOrCreatePostEngagement(postId);
 
       const comment = await prismaClient.comment.create({
         data: {
           content,
-          tweetEngagement: { connect: { tweetId } },
+          postEngagement: { connect: { postId } },
           author: { connect: { id: sessionUserId } },
         },
         include: {
-          tweetEngagement: {
-            include: { tweet: true },
+          postEngagement: {
+            include: { post: true },
           },
         },
       });
 
       // create notification
       await NotificationService.createNotification(
-        NotificationType.COMMENT_ON_TWEET,
+        NotificationType.COMMENT_ON_POST,
         sessionUserId,
-        comment.tweetEngagement.tweet.authorId,
-        { tweetId, commentId: comment.id }
+        comment.postEngagement.post.authorId,
+        { postId, commentId: comment.id }
       );
 
       return true;
@@ -216,27 +215,27 @@ export class TweetEngagementService {
 
   public static async deleteComment(
     sessionUserId: string,
-    tweetId: string,
+    postId: string,
     commentId: string
   ) {
     try {
       const comment = await prismaClient.comment.delete({
-        where: { id: commentId, authorId: sessionUserId, tweetId },
+        where: { id: commentId, authorId: sessionUserId, postId },
         include: {
-          tweetEngagement: { include: { tweet: true } },
+          postEngagement: { include: { post: true } },
           parentComment: true,
         },
       });
 
-      await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+      await PostEngagementService.checkOrDeletePostEngagement(postId);
 
       // delete notification
       if (!comment.parentCommentId) {
         await NotificationService.deleteNotification(
-          NotificationType.COMMENT_ON_TWEET,
+          NotificationType.COMMENT_ON_POST,
           sessionUserId,
-          comment.tweetEngagement.tweet.authorId,
-          { tweetId, commentId: comment.id }
+          comment.postEngagement.post.authorId,
+          { postId, commentId: comment.id }
         );
       } else {
         await NotificationService.deleteNotification(
@@ -244,7 +243,7 @@ export class TweetEngagementService {
           sessionUserId,
           comment.parentComment?.authorId!,
           {
-            tweetId,
+            postId,
             commentId: comment.parentCommentId,
             repliedCommentId: comment.id,
           }
@@ -276,17 +275,17 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getComment(tweetId: string, commentId: string) {
+  public static async getComment(postId: string, commentId: string) {
     return prismaClient.comment.findUnique({
-      where: { id: commentId, tweetId },
+      where: { id: commentId, postId },
       include: { repliedTo: { include: { author: true } } },
     });
   }
 
-  public static async getComments(sessionUserId: string, tweetId: string) {
+  public static async getComments(sessionUserId: string, postId: string) {
     try {
       const result = await prismaClient.comment.findMany({
-        where: { tweetId, parentCommentId: null },
+        where: { postId, parentCommentId: null },
       });
       result.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
 
@@ -304,10 +303,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getCommentsCount(tweetId: string) {
+  public static async getCommentsCount(postId: string) {
     try {
       const result = await prismaClient.comment.findMany({
-        where: { tweetId },
+        where: { postId },
       });
       return result.length;
     } catch (err) {
@@ -330,7 +329,7 @@ export class TweetEngagementService {
         NotificationType.LIKE_ON_COMMENT,
         sessionUserId,
         commentLike.comment.authorId,
-        { tweetId: commentLike.comment.tweetId, commentId }
+        { postId: commentLike.comment.postId, commentId }
       );
 
       return true;
@@ -351,7 +350,7 @@ export class TweetEngagementService {
         NotificationType.LIKE_ON_COMMENT,
         sessionUserId,
         commentLike.comment.authorId,
-        { tweetId: commentLike.comment.tweetId }
+        { postId: commentLike.comment.postId }
       );
 
       return true;
@@ -390,22 +389,19 @@ export class TweetEngagementService {
 
   public static async addReplyToComment(
     sessionUserId: string,
-    tweetId: string,
+    postId: string,
     commentId: string,
     content: string
   ) {
     try {
-      const comment = await TweetEngagementService.getComment(
-        tweetId,
-        commentId
-      );
+      const comment = await PostEngagementService.getComment(postId, commentId);
       if (!comment) throw new Error("Parent comment not found");
 
       let repliedComment;
       if (!comment.parentCommentId) {
         repliedComment = await prismaClient.comment.create({
           data: {
-            tweetEngagement: { connect: { tweetId } },
+            postEngagement: { connect: { postId } },
             content,
             author: { connect: { id: sessionUserId } },
             parentComment: { connect: { id: commentId } },
@@ -415,7 +411,7 @@ export class TweetEngagementService {
       } else {
         repliedComment = await prismaClient.comment.create({
           data: {
-            tweetEngagement: { connect: { tweetId } },
+            postEngagement: { connect: { postId } },
             content,
             author: { connect: { id: sessionUserId } },
             parentComment: { connect: { id: comment.parentCommentId } },
@@ -429,7 +425,7 @@ export class TweetEngagementService {
         NotificationType.REPLY_ON_COMMENT,
         sessionUserId,
         comment.authorId,
-        { tweetId, commentId, repliedCommentId: repliedComment.id }
+        { postId, commentId, repliedCommentId: repliedComment.id }
       );
 
       return true;
@@ -438,10 +434,10 @@ export class TweetEngagementService {
     }
   }
 
-  public static async getCommentsOfComment(commentId: string, tweetId: string) {
+  public static async getCommentsOfComment(commentId: string, postId: string) {
     try {
       const result = await prismaClient.comment.findMany({
-        where: { parentCommentId: commentId, tweetId },
+        where: { parentCommentId: commentId, postId },
       });
       result.sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
       return result;
@@ -464,11 +460,11 @@ export class TweetEngagementService {
 
   public static async getCommentsCountOfComment(
     commentId: string,
-    tweetId: string
+    postId: string
   ) {
     try {
       const result = await prismaClient.comment.findMany({
-        where: { parentCommentId: commentId, tweetId },
+        where: { parentCommentId: commentId, postId },
       });
       return result.length;
     } catch (err) {
@@ -478,13 +474,13 @@ export class TweetEngagementService {
 
   // ---------------------------------------------------------------------------------
 
-  public static async createBookmark(sessionUserId: string, tweetId: string) {
+  public static async createBookmark(sessionUserId: string, postId: string) {
     try {
-      await TweetEngagementService.checkOrCreateTweetEngagement(tweetId);
+      await PostEngagementService.checkOrCreatePostEngagement(postId);
       await prismaClient.bookmark.create({
         data: {
           user: { connect: { id: sessionUserId } },
-          tweetEngagement: { connect: { tweetId } },
+          postEngagement: { connect: { postId } },
         },
       });
       return true;
@@ -493,12 +489,12 @@ export class TweetEngagementService {
     }
   }
 
-  public static async removeBookmark(sessionUserId: string, tweetId: string) {
+  public static async removeBookmark(sessionUserId: string, postId: string) {
     try {
       await prismaClient.bookmark.delete({
-        where: { userId_tweetId: { userId: sessionUserId, tweetId } },
+        where: { userId_postId: { userId: sessionUserId, postId } },
       });
-      await TweetEngagementService.checkOrDeleteTweetEngagement(tweetId);
+      await PostEngagementService.checkOrDeletePostEngagement(postId);
       return true;
     } catch (err) {
       return err;
@@ -509,21 +505,21 @@ export class TweetEngagementService {
     try {
       const result = await prismaClient.bookmark.findMany({
         where: { userId: sessionUserId },
-        include: { tweetEngagement: { include: { tweet: true } } },
+        include: { postEngagement: { include: { post: true } } },
       });
-      return result.map((bookmark) => bookmark.tweetEngagement.tweet);
+      return result.map((bookmark) => bookmark.postEngagement.post);
     } catch (err) {
       return err;
     }
   }
 
-  public static async isTweetBookmarkedBySessionUser(
+  public static async isPostBookmarkedBySessionUser(
     sessionUserId: string,
-    tweetId: string
+    postId: string
   ) {
     try {
       const result = await prismaClient.bookmark.findUnique({
-        where: { userId_tweetId: { userId: sessionUserId, tweetId } },
+        where: { userId_postId: { userId: sessionUserId, postId } },
       });
       if (!result) return false;
       return true;

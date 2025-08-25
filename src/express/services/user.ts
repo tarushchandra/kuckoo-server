@@ -1,9 +1,9 @@
 import { prismaClient } from "../clients/prisma";
-import { NotificationType, User } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { redisClient } from "../clients/redis";
 import { NotificationService } from "./notification";
 import { AuthService, GoogleTokenResult } from "./auth";
+import { NotificationType, User } from "@prisma/client";
 
 class UserService {
   // Utility functions

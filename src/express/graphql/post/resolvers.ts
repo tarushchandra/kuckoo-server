@@ -1,11 +1,11 @@
-import { Tweet } from "@prisma/client";
 import { GraphqlContext } from "..";
-import TweetService from "../../services/tweet";
-import { TweetEngagementService } from "../../services/tweet-engagement";
+import PostService from "../../services/post";
+import { PostEngagementService } from "../../services/post-engagement";
 import UserService from "../../services/user";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
+import { Post } from "../../../generated/prisma";
 
-export interface TweetInput {
+export interface PostInput {
   content?: string;
   imageURL?: string;
 }
@@ -15,9 +15,9 @@ export interface ImageUploadInput {
 }
 
 const queries = {
-  getTweet: async (_: any, { tweetId }: { tweetId: string }) =>
-    await TweetService.getTweet(tweetId),
-  getPaginatedTweets: async (
+  getPost: async (_: any, { postId }: { postId: string }) =>
+    await PostService.getPost(postId),
+  getPaginatedPosts: async (
     _: any,
     {
       userId,
@@ -25,60 +25,60 @@ const queries = {
       cursor,
     }: { userId: string; limit: number; cursor?: string }
   ) => {
-    return await TweetService.getTweets(userId, limit, cursor);
+    return await PostService.getPosts(userId, limit, cursor);
   },
-  getAllTweets: async () => TweetService.getAllTweets(),
+  getAllPosts: async () => PostService.getAllPosts(),
   getSignedURLForUploadingImage: async (
     _: any,
     { payload }: { payload: ImageUploadInput },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetService.getSignedURLForUploadingTweet(user.id, payload);
+    return await PostService.getSignedURLForUploadingPost(user.id, payload);
   },
-  getPaginatedTweetsFeed: async (
+  getPaginatedPostsFeed: async (
     _: any,
     { limit, cursor }: { limit: number; cursor?: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetService.getTweetsFeed(user.id, limit, cursor);
+    return await PostService.getPostsFeed(user.id, limit, cursor);
   },
 };
 
 const mutations = {
-  createTweet: async (
+  createPost: async (
     _: any,
-    { payload }: { payload: TweetInput },
+    { payload }: { payload: PostInput },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetService.createTweet(payload, user.id);
+    return await PostService.createPost(payload, user.id);
   },
-  deleteTweet: async (
+  deletePost: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetService.deleteTweet(user.id, tweetId);
+    return await PostService.deletePost(user.id, postId);
   },
-  updateTweet: async (
+  updatePost: async (
     _: any,
-    { tweetId, payload }: { tweetId: string; payload: TweetInput },
+    { postId, payload }: { postId: string; payload: PostInput },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetService.updateTweet(user.id, tweetId, payload);
+    return await PostService.updatePost(user.id, postId, payload);
   },
 };
 
 const extraResolvers = {
-  Tweet: {
-    author: async (parent: Tweet) =>
+  Post: {
+    author: async (parent: Post) =>
       await UserService.getUserById(parent.authorId),
-    tweetEngagement: async (parent: Tweet) =>
-      await TweetEngagementService.getTweetEngagement(parent.id),
+    postEngagement: async (parent: Post) =>
+      await PostEngagementService.getPostEngagement(parent.id),
   },
 };
 

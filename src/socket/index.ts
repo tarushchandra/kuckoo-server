@@ -2,7 +2,6 @@ import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
 import UserService from "../express/services/user";
 import { prismaClient } from "../express/clients/prisma";
-import { Message } from "@prisma/client";
 import { ChatService } from "../express/services/chat";
 import { redisClient } from "../express/clients/redis";
 

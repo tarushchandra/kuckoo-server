@@ -15,7 +15,7 @@ export const typeDefs = `#graphql
         followersCount: Int
         followingsCount: Int
 
-        tweetsCount: Int
+        postsCount: Int
     }
 
     input SignInFormInput {

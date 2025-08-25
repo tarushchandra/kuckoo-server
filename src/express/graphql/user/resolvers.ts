@@ -1,8 +1,8 @@
-import { User } from "@prisma/client";
 import UserService from "../../services/user";
 import { GraphqlContext } from "..";
-import TweetService from "../../services/tweet";
+import PostService from "../../services/post";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
+import { User } from "../../../generated/prisma";
 
 const queries = {
   getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {
@@ -94,8 +94,8 @@ const extraResolvers = {
       await UserService.getFollowersCount(parent.id),
     followingsCount: async (parent: User) =>
       await UserService.getFollowingsCount(parent.id),
-    tweetsCount: async (parent: User) =>
-      await TweetService.getTweetsCount(parent.id),
+    postsCount: async (parent: User) =>
+      await PostService.getPostsCount(parent.id),
   },
 };
 

@@ -1,12 +1,12 @@
-import { Notification } from "@prisma/client";
 import { GraphqlContext } from "..";
 import { NotificationService } from "../../services/notification";
-import TweetService from "../../services/tweet";
-import { TweetEngagementService } from "../../services/tweet-engagement";
+import PostService from "../../services/post";
+import { PostEngagementService } from "../../services/post-engagement";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
+import { Notification } from "../../../generated/prisma";
 
 export interface NotificationMetaData {
-  tweetId?: string;
+  postId?: string;
   commentId?: string;
   repliedCommentId?: string;
 }
@@ -35,27 +35,27 @@ const extraResolvers = {
   Notification: {
     metaData: (parent: Notification) => {
       const metaData = parent.metaData as NotificationMetaData;
-      if (!metaData.tweetId && !metaData.commentId) return null;
+      if (!metaData.postId && !metaData.commentId) return null;
       return metaData;
     },
   },
   MetaData: {
-    tweet: async (parent: NotificationMetaData) => {
-      if (!parent.tweetId) return null;
-      return await TweetService.getTweet(parent.tweetId);
+    post: async (parent: NotificationMetaData) => {
+      if (!parent.postId) return null;
+      return await PostService.getPost(parent.postId);
     },
     comment: async (parent: NotificationMetaData) => {
-      if (!parent.commentId || !parent.tweetId) return null;
-      return await TweetEngagementService.getComment(
-        parent.tweetId,
+      if (!parent.commentId || !parent.postId) return null;
+      return await PostEngagementService.getComment(
+        parent.postId,
         parent.commentId
       );
     },
     repliedComment: async (parent: NotificationMetaData) => {
-      if (!parent.commentId || !parent.tweetId || !parent.repliedCommentId)
+      if (!parent.commentId || !parent.postId || !parent.repliedCommentId)
         return null;
-      return await TweetEngagementService.getComment(
-        parent.tweetId,
+      return await PostEngagementService.getComment(
+        parent.postId,
         parent.repliedCommentId
       );
     },

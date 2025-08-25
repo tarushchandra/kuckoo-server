@@ -1,14 +1,14 @@
 export const typeDefs = `#graphql
-    type TweetEngagement {
-        tweet: Tweet
+    type PostEngagement {
+        post: Post
         likes: [User]
         comments: [Comment]
         shares: Int
 
         likesCount: Int
-        isTweetLikedBySessionUser: Boolean
+        isPostLikedBySessionUser: Boolean
         commentsCount: Int
-        isTweetBookmarkedBySessionUser: Boolean
+        isPostBookmarkedBySessionUser: Boolean
     }
 
     type Comment {

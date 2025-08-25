@@ -1,72 +1,72 @@
-import { Comment, TweetEngagement } from "@prisma/client";
 import { GraphqlContext } from "..";
-import { TweetEngagementService } from "../../services/tweet-engagement";
+import { PostEngagementService } from "../../services/post-engagement";
 import UserService from "../../services/user";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
+import { Comment, PostEngagement } from "../../../generated/prisma";
 
 export const queries = {
-  getTweetEngagement: async (_: any, { tweetId }: { tweetId: string }) =>
-    await TweetEngagementService.getTweetEngagement(tweetId),
+  getPostEngagement: async (_: any, { postId }: { postId: string }) =>
+    await PostEngagementService.getPostEngagement(postId),
   getMutualLikers: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.getMutualLikers(user.id, tweetId);
+    return await PostEngagementService.getMutualLikers(user.id, postId);
   },
   getCommentsOfComment: async (
     _: any,
-    { tweetId, commentId }: { tweetId: string; commentId: string }
-  ) => TweetEngagementService.getCommentsOfComment(commentId, tweetId),
+    { postId, commentId }: { postId: string; commentId: string }
+  ) => PostEngagementService.getCommentsOfComment(commentId, postId),
   getComment: async (
     _: any,
-    { tweetId, commentId }: { tweetId: string; commentId: string }
-  ) => TweetEngagementService.getComment(tweetId, commentId),
+    { postId, commentId }: { postId: string; commentId: string }
+  ) => PostEngagementService.getComment(postId, commentId),
   getBookmarks: async (_: any, {}, ctx: GraphqlContext) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.getBookmarks(user.id);
+    return await PostEngagementService.getBookmarks(user.id);
   },
 };
 
 export const mutations = {
-  likeTweet: async (
+  likePost: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.likeTweet(user.id, tweetId);
+    return await PostEngagementService.likePost(user.id, postId);
   },
-  dislikeTweet: async (
+  dislikePost: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.dislikeTweet(user.id, tweetId);
+    return await PostEngagementService.dislikePost(user.id, postId);
   },
   createComment: async (
     _: any,
-    { tweetId, content }: { tweetId: string; content: string },
+    { postId, content }: { postId: string; content: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.createCommentOnTweet(
+    return await PostEngagementService.createCommentOnPost(
       user.id,
       content,
-      tweetId
+      postId
     );
   },
   deleteComment: async (
     _: any,
-    { tweetId, commentId }: { tweetId: string; commentId: string },
+    { postId, commentId }: { postId: string; commentId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.deleteComment(
+    return await PostEngagementService.deleteComment(
       user.id,
-      tweetId,
+      postId,
       commentId
     );
   },
@@ -76,7 +76,7 @@ export const mutations = {
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.updateComment(
+    return await PostEngagementService.updateComment(
       user.id,
       commentId,
       content
@@ -88,7 +88,7 @@ export const mutations = {
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.likeComment(user.id, commentId);
+    return await PostEngagementService.likeComment(user.id, commentId);
   },
   dislikeComment: async (
     _: any,
@@ -96,74 +96,74 @@ export const mutations = {
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.dislikeComment(user.id, commentId);
+    return await PostEngagementService.dislikeComment(user.id, commentId);
   },
   createReply: async (
     _: any,
     {
-      tweetId,
+      postId,
       commentId,
       content,
-    }: { tweetId: string; commentId: string; content: string },
+    }: { postId: string; commentId: string; content: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.addReplyToComment(
+    return await PostEngagementService.addReplyToComment(
       user.id,
-      tweetId,
+      postId,
       commentId,
       content
     );
   },
   createBookmark: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.createBookmark(user.id, tweetId);
+    return await PostEngagementService.createBookmark(user.id, postId);
   },
   removeBookmark: async (
     _: any,
-    { tweetId }: { tweetId: string },
+    { postId }: { postId: string },
     ctx: GraphqlContext
   ) => {
     const user = requireAuthenticationAndGetUser(ctx);
-    return await TweetEngagementService.removeBookmark(user.id, tweetId);
+    return await PostEngagementService.removeBookmark(user.id, postId);
   },
 };
 
 export const extraResolvers = {
-  TweetEngagement: {
-    likes: async (parent: TweetEngagement, {}: any, ctx: GraphqlContext) => {
+  PostEngagement: {
+    likes: async (parent: PostEngagement, {}: any, ctx: GraphqlContext) => {
       const user = requireAuthenticationAndGetUser(ctx);
-      return await TweetEngagementService.getLikes(user.id, parent.tweetId);
+      return await PostEngagementService.getLikes(user.id, parent.postId);
     },
-    likesCount: async (parent: TweetEngagement) =>
-      await TweetEngagementService.getLikesCount(parent.tweetId),
-    isTweetLikedBySessionUser: async (
-      parent: TweetEngagement,
+    likesCount: async (parent: PostEngagement) =>
+      await PostEngagementService.getLikesCount(parent.postId),
+    isPostLikedBySessionUser: async (
+      parent: PostEngagement,
       {}: any,
       ctx: GraphqlContext
     ) => {
       const user = requireAuthenticationAndGetUser(ctx);
-      return await TweetEngagementService.isLikeExist(user.id, parent.tweetId);
+      return await PostEngagementService.isLikeExist(user.id, parent.postId);
     },
-    comments: async (parent: TweetEngagement, {}: any, ctx: GraphqlContext) => {
+    comments: async (parent: PostEngagement, {}: any, ctx: GraphqlContext) => {
       const user = requireAuthenticationAndGetUser(ctx);
-      return await TweetEngagementService.getComments(user.id, parent.tweetId);
+      return await PostEngagementService.getComments(user.id, parent.postId);
     },
-    commentsCount: async (parent: TweetEngagement) =>
-      await TweetEngagementService.getCommentsCount(parent.tweetId),
-    isTweetBookmarkedBySessionUser: async (
-      parent: TweetEngagement,
+    commentsCount: async (parent: PostEngagement) =>
+      await PostEngagementService.getCommentsCount(parent.postId),
+    isPostBookmarkedBySessionUser: async (
+      parent: PostEngagement,
       {},
       ctx: GraphqlContext
     ) => {
       const user = requireAuthenticationAndGetUser(ctx);
-      return await TweetEngagementService.isTweetBookmarkedBySessionUser(
+      return await PostEngagementService.isPostBookmarkedBySessionUser(
         user.id,
-        parent.tweetId
+        parent.postId
       );
     },
   },
@@ -172,28 +172,25 @@ export const extraResolvers = {
     author: async (parent: Comment) =>
       await UserService.getUserById(parent.authorId),
     likesCount: async (parent: Comment) =>
-      await TweetEngagementService.getCommentLikesCount(parent.id),
+      await PostEngagementService.getCommentLikesCount(parent.id),
     isCommentLikedBySessionUser: async (
       parent: Comment,
       {}: any,
       ctx: GraphqlContext
     ) => {
       const user = requireAuthenticationAndGetUser(ctx);
-      return await TweetEngagementService.isCommentLikedBySessionUser(
+      return await PostEngagementService.isCommentLikedBySessionUser(
         user.id,
         parent.id
       );
     },
     commentsCount: async (parent: Comment) =>
-      TweetEngagementService.getCommentsCountOfComment(
-        parent.id,
-        parent.tweetId
-      ),
+      PostEngagementService.getCommentsCountOfComment(parent.id, parent.postId),
     parentComment: async (parent: Comment) =>
-      TweetEngagementService.getParentComment(parent.id),
+      PostEngagementService.getParentComment(parent.id),
     repliedTo: async (parent: Comment) =>
-      await TweetEngagementService.getComment(
-        parent.tweetId,
+      await PostEngagementService.getComment(
+        parent.postId,
         parent.repliedToCommentId!
       ),
   },

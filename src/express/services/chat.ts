@@ -1,4 +1,4 @@
-import { Chat, ChatActivity, ChatMemberRole, Message } from "@prisma/client";
+import { ChatActivity, ChatMemberRole, Message } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
 import UserService from "./user";
 

@@ -11,8 +11,8 @@ export const typeDefs = `#graphql
     }
 
     enum NotificationType {
-        LIKE_ON_TWEET
-        COMMENT_ON_TWEET
+        LIKE_ON_POST
+        COMMENT_ON_POST
         LIKE_ON_COMMENT
         REPLY_ON_COMMENT
         FOLLOW
@@ -24,7 +24,7 @@ export const typeDefs = `#graphql
     }
 
     type MetaData {
-        tweet: Tweet
+        post: Post
         comment: Comment
         repliedComment: Comment
     }

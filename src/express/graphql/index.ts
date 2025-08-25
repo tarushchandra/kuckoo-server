@@ -1,7 +1,7 @@
 import { ApolloServer } from "@apollo/server";
 import { User } from "./user";
-import { Tweet } from "./tweet";
-import { TweetEngagement } from "./tweet-engagement";
+import { Post } from "./post";
+import { PostEngagement } from "./post-engagement";
 import { Notification } from "./notification";
 import { Chat } from "./chat";
 import { Auth } from "./auth";
@@ -31,16 +31,16 @@ async function createApolloGraphQLServer() {
     typeDefs: `
         ${Auth.typeDefs}
         ${User.typeDefs}
-        ${Tweet.typeDefs}
-        ${TweetEngagement.typeDefs}
+        ${Post.typeDefs}
+        ${PostEngagement.typeDefs}
         ${Notification.typeDefs}
         ${Chat.typeDefs}
 
         type Query {
           ${Auth.queries}
           ${User.queries}
-          ${Tweet.queries}
-          ${TweetEngagement.queries}
+          ${Post.queries}
+          ${PostEngagement.queries}
           ${Notification.queries}
           ${Chat.queries}
         }
@@ -48,8 +48,8 @@ async function createApolloGraphQLServer() {
         type Mutation {
           ${Auth.mutations}
           ${User.mutations}
-          ${Tweet.mutations}
-          ${TweetEngagement.mutations}
+          ${Post.mutations}
+          ${PostEngagement.mutations}
           ${Notification.mutations}
           ${Chat.mutations}
         }
@@ -58,23 +58,23 @@ async function createApolloGraphQLServer() {
       Query: {
         ...Auth.resolvers.queries,
         ...User.resolvers.queries,
-        ...Tweet.resolvers.queries,
-        ...TweetEngagement.resolvers.queries,
+        ...Post.resolvers.queries,
+        ...PostEngagement.resolvers.queries,
         ...Notification.resolvers.queries,
         ...Chat.resolvers.queries,
       },
       Mutation: {
         ...Auth.resolvers.mutations,
         ...User.resolvers.mutations,
-        ...Tweet.resolvers.mutations,
-        ...TweetEngagement.resolvers.mutations,
+        ...Post.resolvers.mutations,
+        ...PostEngagement.resolvers.mutations,
         ...Notification.resolvers.mutations,
         ...Chat.resolvers.mutations,
       },
       ...Auth.resolvers.extraResolvers,
       ...User.resolvers.extraResolvers,
-      ...Tweet.resolvers.extraResolvers,
-      ...TweetEngagement.resolvers.extraResolvers,
+      ...Post.resolvers.extraResolvers,
+      ...PostEngagement.resolvers.extraResolvers,
       ...Notification.resolvers.extraResolvers,
       ...Chat.resolvers.extraResolvers,
     },

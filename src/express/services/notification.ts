@@ -17,7 +17,7 @@ export class NotificationService {
         sender: { connect: { id: senderId } },
         recipient: { connect: { id: recipientId } },
         metaData: {
-          tweetId: metaData?.tweetId,
+          postId: metaData?.postId,
           commentId: metaData?.commentId,
           repliedCommentId: metaData?.repliedCommentId,
         },
@@ -55,18 +55,18 @@ export class NotificationService {
         where: { type, senderId, recipientId },
       });
 
-    // LIKE_ON_TWEET
+    // LIKE_ON_POST
     if (!metaData.commentId && !metaData.repliedCommentId)
       return prismaClient.notification.findFirst({
         where: {
           type,
           senderId,
           recipientId,
-          metaData: { path: ["tweetId"], equals: metaData.tweetId },
+          metaData: { path: ["postId"], equals: metaData.postId },
         },
       });
 
-    //  LIKE_ON_COMMENT, COMMENT_ON_TWEET
+    //  LIKE_ON_COMMENT, COMMENT_ON_POST
     if (!metaData.repliedCommentId)
       return prismaClient.notification.findFirst({
         where: {
@@ -74,7 +74,7 @@ export class NotificationService {
           senderId,
           recipientId,
           AND: [
-            { metaData: { path: ["tweetId"], equals: metaData.tweetId } },
+            { metaData: { path: ["postId"], equals: metaData.postId } },
             { metaData: { path: ["commentId"], equals: metaData.commentId } },
           ],
         },
@@ -87,7 +87,7 @@ export class NotificationService {
         senderId,
         recipientId,
         AND: [
-          { metaData: { path: ["tweetId"], equals: metaData.tweetId } },
+          { metaData: { path: ["postId"], equals: metaData.postId } },
           { metaData: { path: ["commentId"], equals: metaData.commentId } },
           {
             metaData: {

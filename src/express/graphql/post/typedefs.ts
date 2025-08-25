@@ -1,5 +1,5 @@
 export const typeDefs = `#graphql
-    type Tweet {
+    type Post {
         id: ID!
         content: String
         imageURL: String
@@ -7,15 +7,15 @@ export const typeDefs = `#graphql
         updatedAt: String!
 
         author: User
-        tweetEngagement: TweetEngagement
+        postEngagement: PostEngagement
     }
 
-    type PaginatedTweets {
-        tweets: [Tweet]!
+    type PaginatedPosts {
+        posts: [Post]!
         nextCursor: String
     }
 
-    input TweetInput {
+    input PostInput {
         content: String
         imageURL: String
     }
