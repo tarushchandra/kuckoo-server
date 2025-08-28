@@ -1,8 +1,8 @@
 import { GraphqlContext } from "..";
-import { PostEngagementService } from "../../services/post-engagement";
-import UserService from "../../services/user";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 import { Comment, PostEngagement } from "../../../generated/prisma";
+import { PostEngagementService } from "../../../services/post-engagement";
+import UserService from "../../../services/user";
 
 export const queries = {
   getPostEngagement: async (_: any, { postId }: { postId: string }) =>

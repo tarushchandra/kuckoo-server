@@ -1,9 +1,9 @@
 import { GraphqlContext } from "..";
-import PostService from "../../services/post";
-import { PostEngagementService } from "../../services/post-engagement";
-import UserService from "../../services/user";
 import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
 import { Post } from "../../../generated/prisma";
+import PostService from "../../../services/post";
+import UserService from "../../../services/user";
+import { PostEngagementService } from "../../../services/post-engagement";
 
 export interface PostInput {
   content?: string;

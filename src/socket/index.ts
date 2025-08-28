@@ -1,9 +1,9 @@
 import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
-import UserService from "../express/services/user";
 import { prismaClient } from "../express/clients/prisma";
-import { ChatService } from "../express/services/chat";
 import { redisClient } from "../express/clients/redis";
+import UserService from "../services/user";
+import { ChatService } from "../services/chat";
 
 // online users in different chats
 interface OnlineUser {
@@ -76,18 +76,9 @@ function initSocketServer(httpServer: httpServerType) {
       }
       socketToUserIdMap.delete(socket);
       socketToRoomsMap.delete(socket);
-
-      // console.log(
-      //   "roomToOnlineUsersMap after disconnection -",
-      //   roomToOnlineUsersMap
-      // );
-      // console.log("socketToRoomsMap after disconnection -", socketToRoomsMap);
-      // console.log("userIdToSocketMap after disconnection -", userIdToSocketMap);
-      // console.log("socketToUserIdMap after disconnection -", socketToRoomsMap);
     });
 
     socket.on("message", async (data, isBinary) => {
-      // console.log("message recieved -", data.toString("utf-8"));
       const message = JSON.parse(data.toString("utf-8"));
       console.log("message recieved -", message);
 

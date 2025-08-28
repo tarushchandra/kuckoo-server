@@ -1,5 +1,5 @@
 import { GraphqlContext } from "..";
-import { AuthService } from "../../services/auth";
+import { AuthService } from "../../../services/auth";
 import { AuthenticationError } from "../../utils/error";
 
 export interface signInInput {

@@ -1,10 +1,10 @@
 import axios from "axios";
 import JWT from "jsonwebtoken";
 import UserService from "./user";
-import { AuthenticationError } from "../utils/error";
 import { Response } from "express";
-import { signInInput } from "../graphql/auth/resolvers";
-import { User } from "../../generated/prisma";
+import { User } from "@prisma/client";
+import { signInInput } from "../express/graphql/auth/resolvers";
+import { AuthenticationError } from "../express/utils/error";
 
 export interface GoogleTokenResult {
   iss: string;

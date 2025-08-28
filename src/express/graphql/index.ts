@@ -5,10 +5,10 @@ import { PostEngagement } from "./post-engagement";
 import { Notification } from "./notification";
 import { Chat } from "./chat";
 import { Auth } from "./auth";
-import { JwtUser } from "../services/auth";
 import { GraphQLFormattedError } from "graphql";
 import { ERROR_CODES } from "../utils/error";
 import { Response } from "express";
+import { JwtUser } from "../../services/auth";
 
 export interface GraphqlContext {
   user?: JwtUser | null;

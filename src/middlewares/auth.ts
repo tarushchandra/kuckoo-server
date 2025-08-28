@@ -1,14 +1,14 @@
-import {
-  ACCESS_TOKEN_COOKIE,
-  AuthService,
-  REFRESH_TOKEN_COOKIE,
-} from "../express/services/auth";
 import { Request, Response } from "express";
 import {
   AuthenticationError,
   AuthorizationError,
 } from "../express/utils/error";
 import { GraphqlContext } from "../express/graphql";
+import {
+  ACCESS_TOKEN_COOKIE,
+  AuthService,
+  REFRESH_TOKEN_COOKIE,
+} from "../services/auth";
 
 export const handleAuthMiddleware = async (req: Request, res: Response) => {
   const accessToken = req.cookies[ACCESS_TOKEN_COOKIE];
