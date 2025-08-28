@@ -1,7 +1,7 @@
+import { Chat } from "@prisma/client";
 import { GraphqlContext } from "..";
-import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
-import { Chat } from "../../../generated/prisma";
-import { ChatService } from "../../../services/chat";
+import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
+import { ChatService } from "../../services/chat";
 
 const queries = {
   getChats: async (_: any, {}, ctx: GraphqlContext) => {

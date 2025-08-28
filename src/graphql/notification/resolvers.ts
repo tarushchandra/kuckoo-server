@@ -1,9 +1,9 @@
+import { Notification } from "@prisma/client";
 import { GraphqlContext } from "..";
-import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
-import { Notification } from "../../../generated/prisma";
-import { NotificationService } from "../../../services/notification";
-import PostService from "../../../services/post";
-import { PostEngagementService } from "../../../services/post-engagement";
+import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
+import { NotificationService } from "../../services/notification";
+import PostService from "../../services/post";
+import { PostEngagementService } from "../../services/post-engagement";
 
 export interface NotificationMetaData {
   postId?: string;

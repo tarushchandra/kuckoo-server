@@ -1,8 +1,8 @@
+import { User } from "@prisma/client";
 import { GraphqlContext } from "..";
-import { requireAuthenticationAndGetUser } from "../../../middlewares/auth";
-import { User } from "../../../generated/prisma";
-import UserService from "../../../services/user";
-import PostService from "../../../services/post";
+import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
+import UserService from "../../services/user";
+import PostService from "../../services/post";
 
 const queries = {
   getSessionUser: async (_: any, args: any, ctx: GraphqlContext) => {

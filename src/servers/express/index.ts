@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { handleGraphqlMiddleware } from "../middlewares/graphql";
+import { handleGraphqlMiddleware } from "../../middlewares/graphql";
 
 async function initExpressApp() {
   const app = express();

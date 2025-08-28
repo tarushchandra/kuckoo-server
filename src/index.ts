@@ -1,6 +1,6 @@
-import initExpressApp from "./express";
 import http from "http";
-import initSocketServer from "./socket";
+import initExpressApp from "./servers/express";
+import initSocketServer from "./servers/socket";
 
 async function startServer() {
   const app = await initExpressApp();

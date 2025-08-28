@@ -1,7 +1,7 @@
 import { expressMiddleware } from "@apollo/server/express4";
-import createApolloGraphQLServer from "../express/graphql";
 import { handleAuthMiddleware } from "./auth";
 import { Request, Response, NextFunction } from "express";
+import createApolloGraphQLServer from "../graphql";
 
 export const handleGraphqlMiddleware = async () => {
   const graphqlServer = await createApolloGraphQLServer();
