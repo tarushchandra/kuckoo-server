@@ -1,14 +1,14 @@
 import { WebSocketServer, WebSocket } from "ws";
-import http from "http";
 import UserService from "./user";
 import { ChatService } from "./chat";
 import { prismaClient } from "../clients/prisma";
 import { redisClient } from "../clients/redis";
-
-export type httpServerType = http.Server<
-  typeof http.IncomingMessage,
-  typeof http.ServerResponse
->;
+import {
+  httpServerType,
+  OnlineUser,
+  SOCKET_MESSAGE,
+  SocketMaps,
+} from "../servers/socket/types";
 
 export class SocketService {
   private wss: WebSocketServer;
@@ -34,21 +34,21 @@ export class SocketService {
   private async handleMessage(socket: WebSocket, data: any) {
     const message = JSON.parse(data.toString("utf-8"));
 
-    if (message.type === "CONNECTION_ESTABLISHED")
+    if (message.type === SOCKET_MESSAGE.CONNECTION_ESTABLISHED)
       this.socketMessageHandler.handleConnectionEstablished(socket, message);
 
-    if (message.type === "CHAT_MESSAGE")
+    if (message.type === SOCKET_MESSAGE.CHAT_MESSAGE)
       this.socketMessageHandler.handleChatMessage(socket, message);
 
-    if (message.type === "CHAT_MESSAGES_ARE_SEEN_BY_THE_RECIPIENT")
+    if (message.type === SOCKET_MESSAGE.CHAT_MESSAGES_ARE_SEEN_BY_THE_RECIPIENT)
       this.socketMessageHandler.handleChatMessagesAreSeenByTheRecipient(
         message
       );
 
-    if (message.type === "USER_IS_TYPING")
+    if (message.type === SOCKET_MESSAGE.USER_IS_TYPING)
       this.socketMessageHandler.handleUserIsTyping(socket, message);
 
-    if (message.type === "IS_USER_ONLINE")
+    if (message.type === SOCKET_MESSAGE.IS_USER_ONLINE)
       this.socketMessageHandler.handleIsUserOnline(socket, message);
   }
 
@@ -62,19 +62,6 @@ export class SocketService {
 }
 
 // -----------------------------------------------------------------------------------------------------
-
-// online users in different chats
-interface OnlineUser {
-  userId: string;
-  socket: WebSocket;
-}
-
-export interface SocketMaps {
-  roomToOnlineUsers: Map<string, OnlineUser[]>;
-  socketToRooms: Map<WebSocket, string[]>;
-  userIdToSocket: Map<string, WebSocket>;
-  socketToUserId: Map<WebSocket, string>;
-}
 
 class SocketMessageHandlerService {
   private maps: SocketMaps;
@@ -113,7 +100,7 @@ class SocketMessageHandlerService {
             if (onlineUser.socket.readyState === WebSocket.OPEN) {
               onlineUser.socket.send(
                 JSON.stringify({
-                  type: "USER_IS_OFFLINE",
+                  type: SOCKET_MESSAGE.USER_IS_OFFLINE,
                   userId: targetUserId,
                   lastSeenAt,
                 })
@@ -157,13 +144,13 @@ class SocketMessageHandlerService {
           ) {
             onlineUser.socket.send(
               JSON.stringify({
-                type: "USER_IS_ONLINE",
+                type: SOCKET_MESSAGE.USER_IS_ONLINE,
                 userId: userId,
               } as any)
             );
             socket.send(
               JSON.stringify({
-                type: "USER_IS_ONLINE",
+                type: SOCKET_MESSAGE.USER_IS_ONLINE,
                 userId: onlineUser.userId,
               })
             );
@@ -194,7 +181,7 @@ class SocketMessageHandlerService {
     // sending an acknowledegement of "MESSAGE_RECIEVED_BY_SERVER" back to the sender
     socket.send(
       JSON.stringify({
-        type: "CHAT_MESSAGE_IS_RECIEVED_BY_THE_SERVER",
+        type: SOCKET_MESSAGE.CHAT_MESSAGE_IS_RECIEVED_BY_THE_SERVER,
         chatId: message.chatId,
         messageId: message.message.id,
       })
@@ -346,7 +333,7 @@ class SocketMessageHandlerService {
       if (onlineUser.socket.readyState === WebSocket.OPEN) {
         onlineUser.socket.send(
           JSON.stringify({
-            type: "ACTUAL_CHAT_OR_MESSAGES_IDS",
+            type: SOCKET_MESSAGE.ACTUAL_CHAT_OR_MESSAGES_IDS,
             ...(typeof message.chatId === "number" && {
               chat: {
                 temporaryChatId: message.chatId,

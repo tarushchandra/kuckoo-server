@@ -1,4 +1,5 @@
-import { httpServerType, SocketService } from "../../services/socket";
+import { SocketService } from "../../services/socket";
+import { httpServerType } from "./types";
 
 function initSocketServer(httpServer: httpServerType) {
   const socketServer = new SocketService(httpServer);
