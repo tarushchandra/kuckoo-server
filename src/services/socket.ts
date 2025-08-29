@@ -1,9 +1,9 @@
 import { WebSocketServer, WebSocket } from "ws";
 import http from "http";
 import UserService from "./user";
-import { prismaClient } from "../express/clients/prisma";
 import { ChatService } from "./chat";
-import { redisClient } from "../express/clients/redis";
+import { prismaClient } from "../clients/prisma";
+import { redisClient } from "../clients/redis";
 
 export type httpServerType = http.Server<
   typeof http.IncomingMessage,

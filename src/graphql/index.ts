@@ -8,7 +8,7 @@ import { Auth } from "./auth";
 import { GraphQLFormattedError } from "graphql";
 import { Response } from "express";
 import { JwtUser } from "../services/auth";
-import { ERROR_CODES } from "../express/utils/error";
+import { ERROR_CODES } from "../utils/error";
 
 export interface GraphqlContext {
   user?: JwtUser | null;

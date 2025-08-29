@@ -1,6 +1,6 @@
 import { GraphqlContext } from "..";
-import { AuthenticationError } from "../../express/utils/error";
 import { AuthService } from "../../services/auth";
+import { AuthenticationError } from "../../utils/error";
 
 export interface signInInput {
   googleToken?: string;

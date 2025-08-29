@@ -1,6 +1,6 @@
 import { ChatActivity, ChatMemberRole, Message } from "@prisma/client";
 import UserService from "./user";
-import { prismaClient } from "../express/clients/prisma";
+import { prismaClient } from "../clients/prisma";
 
 export interface CreateMessagePayload {
   targetUserIds: string[] | null;

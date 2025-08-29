@@ -4,7 +4,7 @@ import UserService from "./user";
 import { Response } from "express";
 import { User } from "@prisma/client";
 import { signInInput } from "../graphql/auth/resolvers";
-import { AuthenticationError } from "../express/utils/error";
+import { AuthenticationError } from "../utils/error";
 
 export interface GoogleTokenResult {
   iss: string;

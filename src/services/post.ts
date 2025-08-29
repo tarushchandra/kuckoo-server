@@ -1,9 +1,9 @@
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import UserService from "./user";
-import { prismaClient } from "../express/clients/prisma";
 import { ImageUploadInput, PostInput } from "../graphql/post/resolvers";
-import { s3Client } from "../express/clients/aws";
+import { prismaClient } from "../clients/prisma";
+import { s3Client } from "../clients/aws";
 
 class PostService {
   public static async getPost(postId: string) {
