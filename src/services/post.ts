@@ -77,7 +77,7 @@ class PostService {
       throw new Error("Unsupported Image Type");
 
     const putObjectCommand = new PutObjectCommand({
-      Bucket: process.env.AWS_BUCKET_NAME!,
+      Bucket: process.env.AWS_BUCKET_NAME,
       Key: `uploads/${sessionUserId}/images/${imageName}-${Date.now()}.${imageType}`,
     });
 

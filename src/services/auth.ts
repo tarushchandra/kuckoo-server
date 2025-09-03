@@ -51,7 +51,7 @@ export class AuthService {
   private static async generateAccessToken(payload: User | JwtUser) {
     return JWT.sign(
       { id: payload.id, email: payload.email, username: payload.username },
-      process.env.JWT_ACCESS_SECRET!,
+      process.env.JWT_ACCESS_SECRET,
       {
         expiresIn: `${accessTokenEpirationTimeInSeconds}s`,
       }
@@ -61,7 +61,7 @@ export class AuthService {
   private static async generateRefreshToken(payload: User | JwtUser) {
     return JWT.sign(
       { id: payload.id, email: payload.email, username: payload.username },
-      process.env.JWT_REFRESH_SECRET!,
+      process.env.JWT_REFRESH_SECRET,
       {
         expiresIn: `${refreshTokenExpirationTimeInDays}d`,
       }
@@ -69,11 +69,11 @@ export class AuthService {
   }
 
   public static async decodeAccessToken(token: string) {
-    return JWT.verify(token, process.env.JWT_ACCESS_SECRET!) as JwtUser;
+    return JWT.verify(token, process.env.JWT_ACCESS_SECRET) as JwtUser;
   }
 
   public static async decodeRefreshToken(token: string) {
-    return JWT.verify(token, process.env.JWT_REFRESH_SECRET!) as JwtUser;
+    return JWT.verify(token, process.env.JWT_REFRESH_SECRET) as JwtUser;
   }
 
   private static attachCookiesToResponse(
