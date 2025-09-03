@@ -85,39 +85,6 @@ class PostService {
     return signedURL;
   }
 
-  // public static async getPostsFeed(
-  //   sessionUserId: string,
-  //   limit: number,
-  //   cursor?: string
-  // ) {
-  //   try {
-  //     const sessionUserFollowings = await UserService.getFollowings(
-  //       sessionUserId,
-  //       sessionUserId
-  //     );
-
-  //     let followingsPosts: any[] = [];
-  //     for (const following of sessionUserFollowings) {
-  //       const posts = await PostService.getPosts(following.id);
-  //       followingsPosts.push(posts);
-  //     }
-  //     const sessionUserPosts: any = await PostService.getPosts(
-  //       sessionUserId
-  //     );
-
-  //     const result = [];
-  //     for (const posts of followingsPosts) {
-  //       result.push(...posts);
-  //     }
-  //     result.push(...sessionUserPosts);
-
-  //     result.sort((a, b) => Number(b?.createdAt) - Number(a?.createdAt));
-  //     return result;
-  //   } catch (err) {
-  //     return err;
-  //   }
-  // }
-
   public static async getPostsFeed(
     sessionUserId: string,
     limit: number,
@@ -148,21 +115,6 @@ class PostService {
       return err;
     }
   }
-
-  // public static async getPosts(targetUserId: string) {
-  //   try {
-  //     const posts = await prismaClient.post.findMany({
-  //       where: { authorId: targetUserId },
-  //       orderBy: { createdAt: "desc" },
-  //     });
-
-  //     console.log("user posts -", posts);
-
-  //     return posts;
-  //   } catch (err) {
-  //     return err;
-  //   }
-  // }
 
   public static async getPosts(
     targetUserId: string,
