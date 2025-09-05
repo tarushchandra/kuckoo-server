@@ -37,8 +37,8 @@ export const ACCESS_TOKEN_COOKIE = "access_token";
 export const REFRESH_TOKEN_COOKIE = "refresh_token";
 
 // Token expiration times
-const accessTokenEpirationTimeInSeconds = 60;
-const refreshTokenExpirationTimeInDays = 15;
+const accessTokenEpirationTimeInMinutes = 2;
+const refreshTokenExpirationTimeInDays = 30;
 
 export class AuthService {
   // Utility Functions
@@ -53,7 +53,7 @@ export class AuthService {
       { id: payload.id, email: payload.email, username: payload.username },
       process.env.JWT_ACCESS_SECRET,
       {
-        expiresIn: `${accessTokenEpirationTimeInSeconds}s`,
+        expiresIn: `${accessTokenEpirationTimeInMinutes}m`,
       }
     );
   }
@@ -85,7 +85,7 @@ export class AuthService {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: accessTokenEpirationTimeInSeconds * 1000,
+      maxAge: accessTokenEpirationTimeInMinutes * 60 * 1000,
       path: "/",
     });
 
