@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
@@ -27,8 +28,8 @@ model User {
   followers  Follows[] @relation("follower")
   followings Follows[] @relation("following")
 
-  tweets        Tweet[]
-  likedTweets   TweetLike[]
+  posts        Post[]
+  likedPosts   PostLike[]
   comments      Comment[]
   likedComments CommentLike[]
 
@@ -59,7 +60,7 @@ model Follows {
 
 // --------------------------------------------------------------------------
 
-model Tweet {
+model Post {
   id        String   @id @default(cuid())
   content   String?
   imageURL  String?  @map("image_url")
@@ -69,31 +70,31 @@ model Tweet {
   author   User   @relation(fields: [authorId], references: [id])
   authorId String @map("author_id")
 
-  tweetEngagement TweetEngagement?
+  postEngagement PostEngagement?
 }
 
 // --------------------------------------------------------------------------
 
-model TweetEngagement {
-  likes    TweetLike[]
+model PostEngagement {
+  likes    PostLike[]
   comments Comment[]
   shares   Int         @default(0)
   bookmarks Bookmark[]
 
-  tweet   Tweet  @relation(fields: [tweetId], references: [id])
-  tweetId String @map("tweet_id")
+  post   Post  @relation(fields: [postId], references: [id])
+  postId String @map("post_id")
 
-  @@id([tweetId])
+  @@id([postId])
 }
 
-model TweetLike {
+model PostLike {
   user   User   @relation(fields: [userId], references: [id])
   userId String @map("user_id")
 
-  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId         String          @map("tweet_id")
+  postEngagement PostEngagement @relation(fields: [postId], references: [postId])
+  postId         String          @map("post_id")
 
-  @@id([userId, tweetId])
+  @@id([userId, postId])
 }
 
 model Comment {
@@ -105,8 +106,8 @@ model Comment {
   author   User   @relation(fields: [authorId], references: [id])
   authorId String @map("author_id")
 
-  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId         String          @map("tweet_id")
+  postEngagement PostEngagement @relation(fields: [postId], references: [postId])
+  postId         String          @map("post_id")
 
   likes CommentLike[]
 
@@ -131,8 +132,8 @@ model CommentLike {
 // ----------------------------------------------------------------------------------
 
 enum NotificationType {
-  LIKE_ON_TWEET
-  COMMENT_ON_TWEET
+  LIKE_ON_POST
+  COMMENT_ON_POST
   LIKE_ON_COMMENT
   REPLY_ON_COMMENT
   FOLLOW
@@ -158,10 +159,10 @@ model Bookmark {
   user User @relation(fields: [userId], references: [id])
   userId String @map("user_id")
 
-  tweetEngagement TweetEngagement @relation(fields: [tweetId], references: [tweetId])
-  tweetId String @map("tweet_id")
+  postEngagement PostEngagement @relation(fields: [postId], references: [postId])
+  postId String @map("post_id")
 
-  @@id([userId, tweetId])
+  @@id([userId, postId])
 }
 
 // ----------------------------------------------------------------------------------
