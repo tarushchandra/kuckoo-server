@@ -17,7 +17,7 @@ export const typeDefs = `#graphql
 
     input PostInput {
         content: String
-        imageURL: String
+        imagePathname: String
     }
 
     input imageUploadInput {

@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import UserService from "./user";
 import { ImageUploadInput, PostInput } from "../graphql/post/resolvers";
@@ -15,12 +15,12 @@ class PostService {
   }
 
   public static async createPost(payload: PostInput, sessionUserId: string) {
-    const { content, imageURL } = payload;
+    const { content, imagePathname } = payload;
     try {
       await prismaClient.post.create({
         data: {
           content,
-          imageURL,
+          imageURL: process.env.AWS_CLOUDFRONT_URL + imagePathname,
           author: { connect: { id: sessionUserId } },
         },
       });
@@ -46,11 +46,15 @@ class PostService {
     postId: string,
     payload: PostInput
   ) {
-    const { content, imageURL } = payload;
+    const { content, imagePathname } = payload;
     try {
       await prismaClient.post.update({
         where: { id: postId, authorId: sessionUserId },
-        data: { content, imageURL, updatedAt: new Date(Date.now()) },
+        data: {
+          content,
+          imageURL: process.env.AWS_CLOUDFRONT_URL + imagePathname,
+          updatedAt: new Date(Date.now()),
+        },
       });
       return true;
     } catch (err) {

@@ -7,7 +7,7 @@ import { PostEngagementService } from "../../services/post-engagement";
 
 export interface PostInput {
   content?: string;
-  imageURL?: string;
+  imagePathname?: string;
 }
 export interface ImageUploadInput {
   imageName: string;
