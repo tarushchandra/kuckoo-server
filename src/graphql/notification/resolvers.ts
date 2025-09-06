@@ -1,5 +1,5 @@
-import { Notification } from "@prisma/client";
 import { GraphqlContext } from "..";
+import { Notification } from "../../../generated/prisma";
 import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
 import { NotificationService } from "../../services/notification";
 import PostService from "../../services/post";

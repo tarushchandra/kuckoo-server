@@ -1,5 +1,5 @@
-import { Comment, PostEngagement } from "@prisma/client";
 import { GraphqlContext } from "..";
+import { Comment, PostEngagement } from "../../../generated/prisma";
 import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
 import { PostEngagementService } from "../../services/post-engagement";
 import UserService from "../../services/user";

@@ -1,5 +1,5 @@
-import { Chat } from "@prisma/client";
 import { GraphqlContext } from "..";
+import { Chat } from "../../../generated/prisma";
 import { requireAuthenticationAndGetUser } from "../../middlewares/auth";
 import { ChatService } from "../../services/chat";
 

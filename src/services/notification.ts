@@ -1,6 +1,6 @@
-import { NotificationType } from "@prisma/client";
 import { NotificationMetaData } from "../graphql/notification/resolvers";
 import { prismaClient } from "../clients/prisma";
+import { NotificationType } from "../../generated/prisma";
 
 export class NotificationService {
   public static async createNotification<T extends NotificationType>(

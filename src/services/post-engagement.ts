@@ -1,7 +1,7 @@
 import UserService from "./user";
 import { NotificationService } from "./notification";
-import { NotificationType } from "@prisma/client";
 import { prismaClient } from "../clients/prisma";
+import { NotificationType } from "../../generated/prisma";
 
 export class PostEngagementService {
   public static async getPostEngagement(postId: string) {
