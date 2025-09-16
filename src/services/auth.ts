@@ -84,17 +84,19 @@ export class AuthService {
     res.cookie(ACCESS_TOKEN_COOKIE, accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: accessTokenEpirationTimeInMinutes * 60 * 1000,
+      domain: process.env.COOKIE_DOMAIN,
+      sameSite: "lax",
       path: "/",
+      maxAge: accessTokenEpirationTimeInMinutes * 60 * 1000,
     });
 
     res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: refreshTokenExpirationTimeInDays * 24 * 60 * 60 * 1000,
+      domain: process.env.COOKIE_DOMAIN,
+      sameSite: "lax",
       path: "/",
+      maxAge: refreshTokenExpirationTimeInDays * 24 * 60 * 60 * 1000,
     });
   }
 
