@@ -20,7 +20,9 @@ class PostService {
       await prismaClient.post.create({
         data: {
           content,
-          imageURL: process.env.AWS_CLOUDFRONT_URL + imagePathname,
+          imageURL: imagePathname
+            ? process.env.AWS_CLOUDFRONT_URL + imagePathname
+            : null,
           author: { connect: { id: sessionUserId } },
         },
       });
