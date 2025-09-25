@@ -18,6 +18,9 @@ const queries = {
     if (!ctx.refreshToken) throw new AuthenticationError();
     return await AuthService.verifyRefreshToken(ctx.res, ctx.refreshToken);
   },
+
+  deleteTokens: async (_: any, {}: any, ctx: GraphqlContext) =>
+    await AuthService.deleteCookies(ctx.res),
 };
 
 const mutations = {};

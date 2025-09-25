@@ -100,6 +100,24 @@ export class AuthService {
     });
   }
 
+  private static deleteCookiesFromResponse(res: Response) {
+    res.clearCookie(ACCESS_TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      domain: process.env.COOKIE_DOMAIN,
+      sameSite: "lax",
+      path: "/",
+    });
+
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      domain: process.env.COOKIE_DOMAIN,
+      sameSite: "lax",
+      path: "/",
+    });
+  }
+
   // ---------------------------------------------------------------------------------------------
 
   // Service functions
@@ -132,5 +150,10 @@ export class AuthService {
     } catch (err) {
       throw new AuthenticationError();
     }
+  }
+
+  public static async deleteCookies(res: Response) {
+    AuthService.deleteCookiesFromResponse(res);
+    return true;
   }
 }
