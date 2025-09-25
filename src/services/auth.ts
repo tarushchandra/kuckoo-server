@@ -122,7 +122,7 @@ export class AuthService {
 
   // Service functions
 
-  public static async getTokens(res: Response, payload: signInInput) {
+  public static async setAuthCookies(res: Response, payload: signInInput) {
     try {
       let user: User;
       if (payload.googleToken)
@@ -152,7 +152,7 @@ export class AuthService {
     }
   }
 
-  public static async deleteCookies(res: Response) {
+  public static async deleteAuthCookies(res: Response) {
     AuthService.deleteCookiesFromResponse(res);
     return true;
   }

@@ -11,16 +11,16 @@ export interface signInInput {
 }
 
 const queries = {
-  getTokens: async (_: any, payload: signInInput, ctx: GraphqlContext) =>
-    await AuthService.getTokens(ctx.res, payload),
+  setAuthCookies: async (_: any, payload: signInInput, ctx: GraphqlContext) =>
+    await AuthService.setAuthCookies(ctx.res, payload),
 
   verifyRefreshToken: async (_: any, {}: any, ctx: GraphqlContext) => {
     if (!ctx.refreshToken) throw new AuthenticationError();
     return await AuthService.verifyRefreshToken(ctx.res, ctx.refreshToken);
   },
 
-  deleteTokens: async (_: any, {}: any, ctx: GraphqlContext) =>
-    await AuthService.deleteCookies(ctx.res),
+  deleteAuthCookies: async (_: any, {}: any, ctx: GraphqlContext) =>
+    await AuthService.deleteAuthCookies(ctx.res),
 };
 
 const mutations = {};
