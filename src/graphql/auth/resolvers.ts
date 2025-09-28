@@ -15,7 +15,8 @@ const queries = {
     await AuthService.setAuthCookies(ctx.res, payload),
 
   verifyRefreshToken: async (_: any, {}: any, ctx: GraphqlContext) => {
-    if (!ctx.refreshToken) throw new AuthenticationError();
+    if (!ctx.refreshToken)
+      throw new AuthenticationError("Refresh token is required");
     return await AuthService.verifyRefreshToken(ctx.res, ctx.refreshToken);
   },
 
