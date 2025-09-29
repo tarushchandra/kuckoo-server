@@ -86,7 +86,7 @@ export function isAppError(error: any): error is AppError {
 }
 
 // Helper to convert unknown errors to your error system
-export function normalizeError(error: unknown): AppError {
+export function toAppError(error: unknown): AppError {
   // Already our error type
   if (isAppError(error)) return error;
 
