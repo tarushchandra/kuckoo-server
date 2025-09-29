@@ -17,7 +17,7 @@ export const ERROR_MESSAGES = {
   INTERNAL_SERVER_ERROR: "Something went wrong, Please try again later.",
 };
 
-export class BackendAppError extends Error {
+export class AppError extends Error {
   extensions: { [key: string]: any };
 
   constructor(
@@ -39,31 +39,31 @@ export class BackendAppError extends Error {
   }
 }
 
-export class AuthenticationError extends BackendAppError {
+export class AuthenticationError extends AppError {
   constructor(message = ERROR_MESSAGES.AUTHENTICATION_ERROR) {
     super(message, 401, ERROR_CODES.AUTHENTICATION_ERROR);
   }
 }
 
-export class AuthorizationError extends BackendAppError {
+export class AuthorizationError extends AppError {
   constructor(message = ERROR_MESSAGES.AUTHORIZATION_ERROR) {
     super(message, 403, ERROR_CODES.AUTHORIZATION_ERROR);
   }
 }
 
-export class ValidationError extends BackendAppError {
+export class ValidationError extends AppError {
   constructor(message = ERROR_MESSAGES.VALIDATION_ERROR, field?: string) {
     super(message, 400, ERROR_CODES.VALIDATION_ERROR, { field });
   }
 }
 
-export class NotFoundError extends BackendAppError {
+export class NotFoundError extends AppError {
   constructor(message = ERROR_MESSAGES.NOT_FOUND_ERROR, resource?: string) {
     super(message, 404, ERROR_CODES.NOT_FOUND_ERROR, { resource });
   }
 }
 
-export class InternalServerError extends BackendAppError {
+export class InternalServerError extends AppError {
   constructor(
     message = ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
     originalError?: Error
@@ -80,34 +80,27 @@ export class InternalServerError extends BackendAppError {
 
 // ----------------------------------------------------------------------------------------------------------
 
-// Utility function to check if error is a BackendAppError
-export function isBackendAppError(error: any): error is BackendAppError {
-  return error instanceof BackendAppError;
+// Utility function to check if error is a AppError
+export function isAppError(error: any): error is AppError {
+  return error instanceof AppError;
 }
 
 // Helper to convert unknown errors to your error system
-export function normalizeError(error: unknown): BackendAppError {
+export function normalizeError(error: unknown): AppError {
   // Already our error type
-  if (isBackendAppError(error)) return error;
+  if (isAppError(error)) return error;
 
   // Standard Error object
-  if (error instanceof Error) {
-    return new InternalServerError(
-      process.env.NODE_ENV === "development"
-        ? error.message
-        : ERROR_MESSAGES.INTERNAL_SERVER_ERROR,
-      error
-    );
-  }
+  if (error instanceof Error)
+    return new InternalServerError(ERROR_MESSAGES.INTERNAL_SERVER_ERROR, error);
 
   // String error
-  if (typeof error === "string") {
+  if (typeof error === "string")
     return new InternalServerError(
       process.env.NODE_ENV === "development"
         ? error
         : ERROR_MESSAGES.INTERNAL_SERVER_ERROR
     );
-  }
 
   // Unknown error type
   return new InternalServerError();
