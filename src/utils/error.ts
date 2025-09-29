@@ -71,8 +71,8 @@ export class InternalServerError extends AppError {
     super(message, 500, ERROR_CODES.INTERNAL_SERVER_ERROR, {
       ...(process.env.NODE_ENV === "development" &&
         originalError && {
-          originalError: originalError.message,
-          originalStack: originalError.stack,
+          originalErrorMessage: originalError.message,
+          originalErrorStack: originalError.stack,
         }),
     });
   }
@@ -129,8 +129,8 @@ export const graphqlErrorFormatter = (error: GraphQLFormattedError) => {
   const developmentErrorExtensions =
     process.env.NODE_ENV === "development"
       ? {
-          originalError: error.extensions?.originalError,
-          originalStack: error.extensions?.originalStack,
+          originalErrorMessage: error.extensions?.originalErrorMessage,
+          originalErrorStack: error.extensions?.originalErrorStack,
           stacktrace: error.extensions?.stacktrace,
         }
       : {};
@@ -141,9 +141,9 @@ export const graphqlErrorFormatter = (error: GraphQLFormattedError) => {
     const excludedKeys = [
       "code",
       "statusCode",
-      "originalError",
-      "stack",
       "stacktrace",
+      "originalErrorMessage",
+      "originalErrorStack",
     ];
     Object.keys(error.extensions).forEach((key) => {
       if (!excludedKeys.includes(key)) {
