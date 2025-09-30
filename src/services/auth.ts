@@ -231,12 +231,14 @@ export class AuthService {
   public static async setAuthCookies(res: Response, payload: signInInput) {
     // Validating input
     AuthService.validateSignInInput(payload);
+    if (!res) throw new InternalServerError("Response object is required");
 
     let user;
     try {
       if (payload.googleToken)
         user = await UserService.signInWithGoogle(payload.googleToken);
-      else user = await UserService.signInWithEmailAndPassword(payload.user);
+      if (payload.user)
+        user = await UserService.signInWithEmailAndPassword(payload.user);
       if (!user) throw new NotFoundError("User not found", "user");
 
       const accessToken = await AuthService.generateAccessToken(user);
