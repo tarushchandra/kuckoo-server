@@ -1,6 +1,19 @@
 import UserService from "./user";
 import { prismaClient } from "../clients/prisma";
-import { ChatActivity, ChatMemberRole, Message } from "../../generated/prisma";
+import {
+  Chat,
+  ChatActivity,
+  ChatMemberRole,
+  Message,
+  User,
+} from "../../generated/prisma";
+import {
+  ValidationError,
+  NotFoundError,
+  isAppError,
+  toAppError,
+  AuthorizationError,
+} from "../utils/error";
 
 export interface CreateMessagePayload {
   targetUserIds: string[] | null;
@@ -23,69 +36,108 @@ interface ChatHistory {
   activities: ChatActivity[];
 }
 
+// ---------------------------------------------------------------------------------
+
+interface ChatWithMembers extends Chat {
+  members: User[];
+}
+
+interface ChatMember {
+  user: User;
+  role: ChatMemberRole;
+}
+
+// ---------------------------------------------------------------------------------
+
 export class ChatService {
   public static async findOrCreateChat(
     sessionUserId: string,
     targetUserIds: string[],
     metaData?: ChatMetaData
-  ) {
+  ): Promise<Chat> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!targetUserIds || targetUserIds.length === 0)
+      throw new ValidationError("At least one target user ID is required");
+
     const totalMemberIds = [sessionUserId, ...targetUserIds];
 
-    console.log("totalMembersId -", totalMemberIds);
-    console.log("metaData -", metaData);
+    try {
+      // for one-on-one chat
+      if (!metaData || !metaData.isGroupChat) {
+        // check if chat already exists
+        const chat = await prismaClient.chat.findFirst({
+          where: {
+            isGroupChat: false,
+            AND: totalMemberIds.map((memberId) => ({
+              members: { some: { userId: memberId } },
+            })),
+          },
+        });
+        if (chat) return chat;
 
-    if (!metaData || !metaData.isGroupChat) {
+        // create chat
+        return prismaClient.chat.create({
+          data: {
+            creator: { connect: { id: sessionUserId } },
+            members: {
+              create: totalMemberIds.map((memberId) => ({
+                user: { connect: { id: memberId } },
+              })),
+            },
+          },
+        });
+      }
+
+      // for group chat
+      // check group chat name
+      if (!metaData?.chatName || metaData.chatName.trim().length === 0)
+        throw new ValidationError("Group chat name is required", "chatName");
+      if (metaData.chatName.length > 100)
+        throw new ValidationError(
+          "Group chat name must not exceed 100 characters",
+          "chatName"
+        );
+
+      // check if group chat with same name already exists
       const chat = await prismaClient.chat.findFirst({
         where: {
-          isGroupChat: false,
-          AND: totalMemberIds.map((memberId) => ({
-            members: { some: { userId: memberId } },
-          })),
+          name: metaData.chatName,
         },
       });
-      // console.log("chat -", chat);
-      if (chat) return chat;
+      if (chat) throw new ValidationError("Group already exists", "chatName");
 
-      // create chat
+      // create group chat
       return prismaClient.chat.create({
         data: {
           creator: { connect: { id: sessionUserId } },
           members: {
             create: totalMemberIds.map((memberId) => ({
               user: { connect: { id: memberId } },
+              role:
+                memberId === sessionUserId
+                  ? ChatMemberRole.ADMIN
+                  : ChatMemberRole.MEMBER,
             })),
           },
+          name: metaData.chatName,
+          isGroupChat: metaData.isGroupChat,
         },
       });
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
-
-    const chat = await prismaClient.chat.findFirst({
-      where: {
-        name: metaData.chatName,
-      },
-    });
-    // console.log("chat -", chat);
-    if (chat) throw new Error("Group already exists");
-
-    return prismaClient.chat.create({
-      data: {
-        creator: { connect: { id: sessionUserId } },
-        members: {
-          create: totalMemberIds.map((memberId) => ({
-            user: { connect: { id: memberId } },
-            role:
-              memberId === sessionUserId
-                ? ChatMemberRole.ADMIN
-                : ChatMemberRole.MEMBER,
-          })),
-        },
-        name: metaData.chatName,
-        isGroupChat: metaData.isGroupChat,
-      },
-    });
   }
 
-  public static async getChat(sessionUserId: string, targetUserId: string) {
+  public static async getChat(
+    sessionUserId: string,
+    targetUserId: string
+  ): Promise<ChatWithMembers | null> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!targetUserId) throw new ValidationError("Target user ID is required");
+
     try {
       const chat = await prismaClient.chat.findFirst({
         where: {
@@ -103,12 +155,11 @@ export class ChatService {
           creator: true,
         },
       });
-      // console.log("chat -", chat);
-      // console.log("user -", chat?.members[0].user);
       if (!chat) return null;
       return { ...chat, members: chat?.members.map((x) => x.user) };
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -116,7 +167,19 @@ export class ChatService {
     sessionUserId: string,
     name: string,
     targetUserIds: string[]
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!name || name.trim().length === 0)
+      throw new ValidationError("Group chat name is required", "name");
+    if (name.length > 100)
+      throw new ValidationError(
+        "Group chat name must not exceed 100 characters",
+        "name"
+      );
+    if (!targetUserIds || targetUserIds.length === 0)
+      throw new ValidationError("At least one target user ID is required");
+
     try {
       await ChatService.findOrCreateChat(sessionUserId, targetUserIds, {
         chatName: name,
@@ -124,7 +187,8 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -132,8 +196,36 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     name: string
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!name || name.trim().length === 0)
+      throw new ValidationError("Group chat name is required", "name");
+    if (name.length > 100)
+      throw new ValidationError(
+        "Group chat name must not exceed 100 characters",
+        "name"
+      );
+
     try {
+      // Check if chat exists and user is admin
+      const chat = await prismaClient.chat.findFirst({
+        where: {
+          id: chatId,
+          isGroupChat: true,
+          members: {
+            some: { AND: [{ userId: sessionUserId }, { role: "ADMIN" }] },
+          },
+        },
+      });
+      if (!chat)
+        throw new NotFoundError(
+          "Group chat not found or you are not an admin",
+          "chat"
+        );
+
+      // rename group chat
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -158,7 +250,8 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -166,7 +259,18 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     searchText: string
-  ) {
+  ): Promise<User[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!searchText || searchText.trim().length === 0)
+      throw new ValidationError("Search text is required", "searchText");
+    if (searchText.length > 100)
+      throw new ValidationError(
+        "Search text must not exceed 100 characters",
+        "searchText"
+      );
+
     try {
       const result = await prismaClient.chatMembership.findMany({
         where: { chatId, NOT: { userId: sessionUserId } },
@@ -179,7 +283,8 @@ export class ChatService {
         searchText
       );
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -187,8 +292,28 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     targetUserIds: string[]
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!targetUserIds || targetUserIds.length === 0)
+      throw new ValidationError("At least one target user ID is required");
+
     try {
+      // Check if user is admin
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
+        throw new AuthorizationError("Only admins can add members to group");
+
+      // Add members to group
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -213,7 +338,8 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -221,8 +347,30 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     targetUserId: string
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!targetUserId)
+      throw new ValidationError("Target user ID is required", "targetUserId");
+
     try {
+      // Check if user is admin
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
+        throw new AuthorizationError(
+          "Only admins can remove members from group"
+        );
+
+      // Remove member from group
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -245,7 +393,8 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -253,8 +402,28 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     targetUserId: string
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!targetUserId)
+      throw new ValidationError("Target user ID is required", "targetUserId");
+
     try {
+      // Check if user is admin
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
+        throw new AuthorizationError("Only admins can add members to group");
+
+      // Add members to group
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -280,7 +449,8 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
@@ -288,8 +458,30 @@ export class ChatService {
     sessionUserId: string,
     chatId: string,
     targetUserId: string
-  ) {
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!targetUserId)
+      throw new ValidationError("Target user ID is required", "targetUserId");
+
     try {
+      // Check if user is admin
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
+        throw new AuthorizationError(
+          "Only admins can remove members from group"
+        );
+
+      // Add members to group
       await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -315,12 +507,32 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async leaveGroup(sessionUserId: string, chatId: string) {
+  public static async leaveGroup(
+    sessionUserId: string,
+    chatId: string
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
+      // Check if user is member of chat
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+
+      // Leave group
       await prismaClient.chat.update({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
         data: {
@@ -338,11 +550,17 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getChats(sessionUserId: string) {
+  public static async getChats(
+    sessionUserId: string
+  ): Promise<ChatWithMembers[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+
     try {
       const result = await prismaClient.chat.findMany({
         where: { members: { some: { userId: sessionUserId } } },
@@ -358,20 +576,37 @@ export class ChatService {
         orderBy: { updatedAt: "desc" },
       });
 
-      // console.log("chats -", result);
-      // console.log("message -", result[0].messages[0]);
-
       return result.map((chat) => ({
         ...chat,
         members: chat.members.map((x) => x.user),
       }));
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getChatMembers(sessionUserId: string, chatId: string) {
+  public static async getChatMembers(
+    sessionUserId: string,
+    chatId: string
+  ): Promise<ChatMember[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
+      // Check if user is member of chat
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+
+      // Get chat members
       const result = await prismaClient.chatMembership.findMany({
         where: {
           chatId,
@@ -380,6 +615,7 @@ export class ChatService {
         include: { user: true },
       });
 
+      // Sort members
       const sessionUserChatMembership = result.filter(
         (x) => x.userId === sessionUserId
       );
@@ -391,10 +627,7 @@ export class ChatService {
         (x) => x.userId !== sessionUserId && x.role !== ChatMemberRole.ADMIN
       );
 
-      // console.log("sessionUserChatMembership -", sessionUserChatMembership);
-      // console.log("adminChatMemberships -", adminChatMemberships);
-      // console.log("remainingChatMemberships -", remainingChatMemberships);
-
+      // return with session user first, then admins, then members
       return [
         {
           user: sessionUserChatMembership[0].user,
@@ -404,11 +637,19 @@ export class ChatService {
         ...remainingChatMemberships,
       ];
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getMembersCount(sessionUserId: string, chatId: string) {
+  public static async getMembersCount(
+    sessionUserId: string,
+    chatId: string
+  ): Promise<number> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
       return prismaClient.chatMembership.count({
         where: {
@@ -417,12 +658,32 @@ export class ChatService {
         },
       });
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getChatHistory(sessionUserId: string, chatId: string) {
+  public static async getChatHistory(
+    sessionUserId: string,
+    chatId: string
+  ): Promise<ChatHistory[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
+      // Check if user is member of chat
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+
+      // Get chat history
       const result = await prismaClient.chat.findUnique({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
         include: {
@@ -440,14 +701,14 @@ export class ChatService {
         },
       });
 
-      // console.log("Result -", result);
-      // console.log("seenBy -", result?.messages[0].seenBy);
+      // If the chat is not found
+      if (!result) throw new NotFoundError("Chat not found", "chat");
 
-      const items = [...result!.messages, ...result!.activites];
+      // Sort chat history by date
+      const items = [...result.messages, ...result.activites];
       items.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
 
-      console.log("items -", items);
-
+      // Group chat history by date
       const chatHistory = items.reduce((acc: ChatHistory[], curr: any) => {
         const createdAtDate = new Date(curr.createdAt).toDateString();
 
@@ -519,70 +780,53 @@ export class ChatService {
         return acc;
       }, []);
 
-      console.log("chatHistory -", chatHistory);
-
       return chatHistory;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
   // ---------------------------------------------------------------------------------
 
-  // public static async createMessage(
-  //   sessionUserId: string,
-  //   payload: CreateMessagePayload
-  // ) {
-  //   // console.log("session user -", sessionUserId);
-  //   // console.log("payload -", payload);
-
-  //   const { content, targetUserIds, chatId } = payload;
-  //   let chat: Chat | null = null;
-
-  //   try {
-  //     if (!chatId && targetUserIds)
-  //       chat = await ChatService.findOrCreateChat(sessionUserId, targetUserIds);
-
-  //     const updatedChat = await prismaClient.chat.update({
-  //       where: {
-  //         id: chatId ? chatId : chat?.id,
-  //         members: { some: { userId: sessionUserId } },
-  //       },
-  //       data: {
-  //         messages: {
-  //           create: [{ content, sender: { connect: { id: sessionUserId } } }],
-  //         },
-  //         updatedAt: new Date(Date.now()),
-  //       },
-  //       select: {
-  //         messages: {
-  //           select: { id: true },
-  //           orderBy: { createdAt: "desc" },
-  //           take: 1,
-  //         },
-  //       },
-  //     });
-
-  //     // console.log("updated chat -", updatedChat);
-
-  //     return {
-  //       id: updatedChat.messages[0].id,
-  //       chat,
-  //     };
-  //   } catch (err) {
-  //     return err;
-  //   }
-  // }
-
   public static async createMessages(
     sessionUserId: string,
     chatId: string,
     messages: any[]
-  ) {
-    // console.log("session user -", sessionUserId);
-    // console.log("payload -", payload);
+  ): Promise<{ id: string }[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!messages || messages.length === 0)
+      throw new ValidationError("At least one message is required");
+
+    // Validate each message
+    messages.forEach((message, index) => {
+      if (!message.content || message.content.trim().length === 0)
+        throw new ValidationError(
+          `Message content is required at index ${index}`,
+          `messages[${index}].content`
+        );
+      if (message.content.length > 5000)
+        throw new ValidationError(
+          `Message content must not exceed 5000 characters at index ${index}`,
+          `messages[${index}].content`
+        );
+    });
 
     try {
+      // Check if user is member of chat
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+
+      // create messages
       const updatedChat = await prismaClient.chat.update({
         where: {
           id: chatId,
@@ -607,16 +851,20 @@ export class ChatService {
         },
       });
 
-      // console.log("updated chat -", updatedChat);
-
       return updatedChat.messages;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getLatestChatContent(chatId: string) {
+  public static async getLatestChatContent(
+    chatId: string
+  ): Promise<Message | ChatActivity | null> {
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
+      // Get latest message
       const latestMessage = await prismaClient.message.findFirst({
         where: { chatId },
         orderBy: {
@@ -625,6 +873,7 @@ export class ChatService {
         take: 1,
       });
 
+      // Get latest activity
       const latestChatActivity = await prismaClient.chatActivity.findFirst({
         where: { chatId },
         orderBy: {
@@ -634,9 +883,6 @@ export class ChatService {
         take: 1,
       });
 
-      // console.log("latestMessage -", latestMessage);
-      // console.log("latestChatActivity -", latestChatActivity);
-
       if (!latestChatActivity) return latestMessage;
 
       const result =
@@ -644,15 +890,21 @@ export class ChatService {
           ? latestMessage
           : latestChatActivity;
 
-      // console.log("result - ", result);
-
       return result;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
-  public static async getLatestMessage(sessionUserId: string, chatId: string) {
+  public static async getLatestMessage(
+    sessionUserId: string,
+    chatId: string
+  ): Promise<Message | null> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
       return await prismaClient.message.findFirst({
         where: {
@@ -667,47 +919,35 @@ export class ChatService {
         },
       });
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
-
-  // public static async setMessagesAsSeen(
-  //   sessionUserId: string,
-  //   chatId: string,
-  //   messageIds: string[]
-  // ) {
-  //   try {
-  //     await prismaClient.chat.update({
-  //       where: { id: chatId, members: { some: { userId: sessionUserId } } },
-  //       data: {
-  //         messages: {
-  //           update: messageIds.map((messageId) => ({
-  //             where: {
-  //               id: messageId,
-  //               AND: [
-  //                 { seenBy: { none: { id: sessionUserId } } },
-  //                 { senderId: { not: sessionUserId } },
-  //               ],
-  //             },
-  //             data: { seenBy: { connect: { id: sessionUserId } } },
-  //           })),
-  //         },
-  //       },
-  //     });
-  //     return true;
-  //   } catch (err) {
-  //     return err;
-  //   }
-  // }
 
   public static async setMessagesAsSeen(
     sessionUserId: string,
     chatId: string,
     messages: any
-  ) {
-    console.log("setMessagesAsSeen args -", sessionUserId, chatId, messages);
+  ): Promise<boolean> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+    if (!messages || messages.length === 0)
+      throw new ValidationError("Messages are required", "messages");
 
     try {
+      // Check if user is member of chat
+      const sessionUserMembership =
+        await prismaClient.chatMembership.findUnique({
+          where: { chatId_userId: { chatId, userId: sessionUserId } },
+        });
+      if (!sessionUserMembership)
+        throw new NotFoundError(
+          "You are not a member of this chat",
+          "chatMembership"
+        );
+
+      // Set messages as seen
       await prismaClient.chat.update({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
         data: {
@@ -727,11 +967,15 @@ export class ChatService {
       });
       return true;
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
   public static async getUnseenChatsCount(sessionUserId: string) {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+
     try {
       return await prismaClient.chat.count({
         where: {
@@ -747,14 +991,19 @@ export class ChatService {
         },
       });
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
   public static async getUnseenMessagesCount(
     sessionUserId: string,
     chatId: string
-  ) {
+  ): Promise<number> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
+
     try {
       return await prismaClient.message.count({
         where: {
@@ -766,14 +1015,19 @@ export class ChatService {
         },
       });
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 
   public static async getPeopleWithMessageSeen(
     sessionUserId: string,
     messageId: string
-  ) {
+  ): Promise<User[]> {
+    if (!sessionUserId)
+      throw new ValidationError("Session user ID is required");
+    if (!messageId) throw new ValidationError("Message ID is required");
+
     try {
       const result = await prismaClient.message.findUnique({
         where: {
@@ -782,9 +1036,10 @@ export class ChatService {
         },
         include: { seenBy: true },
       });
-      return result?.seenBy;
+      return result?.seenBy || [];
     } catch (err) {
-      return err;
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
   }
 }
