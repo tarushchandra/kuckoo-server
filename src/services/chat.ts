@@ -300,19 +300,6 @@ export class ChatService {
       throw new ValidationError("At least one target user ID is required");
 
     try {
-      // Check if user is admin
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
-        throw new AuthorizationError("Only admins can add members to group");
-
       // Add members to group
       await prismaClient.chat.update({
         where: {
@@ -355,21 +342,6 @@ export class ChatService {
       throw new ValidationError("Target user ID is required", "targetUserId");
 
     try {
-      // Check if user is admin
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
-        throw new AuthorizationError(
-          "Only admins can remove members from group"
-        );
-
       // Remove member from group
       await prismaClient.chat.update({
         where: {
@@ -410,19 +382,6 @@ export class ChatService {
       throw new ValidationError("Target user ID is required", "targetUserId");
 
     try {
-      // Check if user is admin
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
-        throw new AuthorizationError("Only admins can add members to group");
-
       // Add members to group
       await prismaClient.chat.update({
         where: {
@@ -466,21 +425,6 @@ export class ChatService {
       throw new ValidationError("Target user ID is required", "targetUserId");
 
     try {
-      // Check if user is admin
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-      if (sessionUserMembership.role !== ChatMemberRole.ADMIN)
-        throw new AuthorizationError(
-          "Only admins can remove members from group"
-        );
-
       // Add members to group
       await prismaClient.chat.update({
         where: {
@@ -521,17 +465,6 @@ export class ChatService {
     if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
 
     try {
-      // Check if user is member of chat
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-
       // Leave group
       await prismaClient.chat.update({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
@@ -595,17 +528,6 @@ export class ChatService {
     if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
 
     try {
-      // Check if user is member of chat
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-
       // Get chat members
       const result = await prismaClient.chatMembership.findMany({
         where: {
@@ -614,6 +536,10 @@ export class ChatService {
         },
         include: { user: true },
       });
+
+      // Check if user is a member
+      if (result.length === 0)
+        throw new ValidationError("You are not a member of this chat");
 
       // Sort members
       const sessionUserChatMembership = result.filter(
@@ -672,17 +598,6 @@ export class ChatService {
     if (!chatId) throw new ValidationError("Chat ID is required", "chatId");
 
     try {
-      // Check if user is member of chat
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-
       // Get chat history
       const result = await prismaClient.chat.findUnique({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },
@@ -815,17 +730,6 @@ export class ChatService {
     });
 
     try {
-      // Check if user is member of chat
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-
       // create messages
       const updatedChat = await prismaClient.chat.update({
         where: {
@@ -936,17 +840,6 @@ export class ChatService {
       throw new ValidationError("Messages are required", "messages");
 
     try {
-      // Check if user is member of chat
-      const sessionUserMembership =
-        await prismaClient.chatMembership.findUnique({
-          where: { chatId_userId: { chatId, userId: sessionUserId } },
-        });
-      if (!sessionUserMembership)
-        throw new NotFoundError(
-          "You are not a member of this chat",
-          "chatMembership"
-        );
-
       // Set messages as seen
       await prismaClient.chat.update({
         where: { id: chatId, members: { some: { userId: sessionUserId } } },

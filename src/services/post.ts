@@ -66,15 +66,6 @@ class PostService {
     if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
-      const post = await prismaClient.post.findUnique({
-        where: { id: postId },
-      });
-      if (!post) throw new NotFoundError("Post not found", "post");
-      if (sessionUserId !== post.authorId)
-        throw new AuthorizationError(
-          "You are not authorized to delete this post"
-        );
-
       await prismaClient.post.delete({
         where: { id: postId, authorId: sessionUserId },
       });
@@ -98,15 +89,6 @@ class PostService {
 
     const { content, imagePathname } = payload;
     try {
-      const post = await prismaClient.post.findUnique({
-        where: { id: postId },
-      });
-      if (!post) throw new NotFoundError("Post not found", "post");
-      if (post.authorId !== sessionUserId)
-        throw new AuthorizationError(
-          "You are not authorized to update this post"
-        );
-
       await prismaClient.post.update({
         where: { id: postId, authorId: sessionUserId },
         data: {

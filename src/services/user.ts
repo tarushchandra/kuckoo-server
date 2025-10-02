@@ -48,16 +48,21 @@ class UserService {
       throw new ValidationError("Password is required", "password");
 
     try {
-      const isEmailExist = await UserService.isEmailExist(payload.email);
-      if (isEmailExist)
-        throw new ValidationError("Email already exists", "email");
+      // Check if email or username already exists
+      const existingUser = await prismaClient.user.findFirst({
+        where: {
+          OR: [{ email: payload.email }, { username: payload.username }],
+        },
+        select: { email: true, username: true },
+      });
+      if (existingUser) {
+        if (existingUser.email === payload.email)
+          throw new ValidationError("Email already exists", "email");
+        if (existingUser.username === payload.username)
+          throw new ValidationError("Username already exists", "username");
+      }
 
-      const isUsernameExist = await UserService.isUsernameExist(
-        payload.username
-      );
-      if (isUsernameExist)
-        throw new ValidationError("Username already exists", "username");
-
+      // Create user
       return prismaClient.user.create({
         data: {
           firstName: payload.firstName,
@@ -94,10 +99,11 @@ class UserService {
       throw new ValidationError("Username is required", "username");
 
     try {
-      const count = await prismaClient.user.count({
+      const user = await prismaClient.user.findFirst({
         where: { username },
       });
-      return count > 0;
+      if (!user) return false;
+      return true;
     } catch (err) {
       if (isAppError(err)) throw err;
       throw toAppError(err);
@@ -108,10 +114,11 @@ class UserService {
     if (!email) throw new ValidationError("Email is required", "email");
 
     try {
-      const count = await prismaClient.user.count({
+      const user = await prismaClient.user.findFirst({
         where: { email },
       });
-      return count > 0;
+      if (!user) return false;
+      return true;
     } catch (err) {
       if (isAppError(err)) throw err;
       throw toAppError(err);
@@ -355,15 +362,6 @@ class UserService {
     if (from === to) throw new ValidationError("You cannot follow yourself");
 
     try {
-      // check if the follow relationship already exists
-      const isExistingFollowExist = await prismaClient.follows.findUnique({
-        where: {
-          followerId_followingId: { followerId: from, followingId: to },
-        },
-      });
-      if (isExistingFollowExist)
-        throw new ValidationError("You are already following this user", "to");
-
       // create the follow relationship
       await prismaClient.follows.create({
         data: {
@@ -421,18 +419,6 @@ class UserService {
     if (from === to) throw new ValidationError("You cannot unfollow yourself");
 
     try {
-      // Check if follow relationship exists
-      const isExistingFollowExist = await prismaClient.follows.findUnique({
-        where: {
-          followerId_followingId: { followerId: from, followingId: to },
-        },
-      });
-      if (!isExistingFollowExist)
-        throw new ValidationError(
-          "You are already not following this user",
-          "to"
-        );
-
       // delete the follow relationship
       await prismaClient.follows.delete({
         where: {

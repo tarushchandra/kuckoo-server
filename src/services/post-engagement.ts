@@ -99,12 +99,25 @@ export class PostEngagementService {
     if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
-      const likesCount = await PostEngagementService.getLikesCount(postId);
-      const commentsCount = await PostEngagementService.getCommentsCount(
-        postId
-      );
-      if (likesCount === 0 && commentsCount === 0)
-        await PostEngagementService.deletePostEngagement(postId);
+      // check if post engagement exists
+      const result = await prismaClient.postEngagement.findUnique({
+        where: { postId },
+        include: {
+          _count: {
+            select: { likes: true, comments: true, bookmarks: true },
+          },
+        },
+      });
+
+      // delete if no engagement
+      if (
+        result &&
+        result._count.likes === 0 &&
+        result._count.comments === 0 &&
+        result._count.bookmarks === 0
+      ) {
+        await prismaClient.postEngagement.delete({ where: { postId } });
+      }
     } catch (err) {
       if (isAppError(err)) throw err;
       throw toAppError(err);
@@ -124,14 +137,6 @@ export class PostEngagementService {
     try {
       // Check if post engagement exists
       await PostEngagementService.checkOrCreatePostEngagement(postId);
-
-      // Check if already liked
-      const isLikedPost = await PostEngagementService.isLikeExist(
-        sessionUserId,
-        postId
-      );
-      if (isLikedPost)
-        throw new ValidationError("Post already liked by user", "postId");
 
       // Create like
       const likedPost = await prismaClient.postLike.create({
@@ -170,14 +175,6 @@ export class PostEngagementService {
     if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
-      // Check if already liked
-      const isLikedPost = await PostEngagementService.isLikeExist(
-        sessionUserId,
-        postId
-      );
-      if (!isLikedPost)
-        throw new ValidationError("Post not liked by user", "postId");
-
       // delete like
       const dislikedPost = await prismaClient.postLike.delete({
         where: {
@@ -350,17 +347,6 @@ export class PostEngagementService {
       throw new ValidationError("Comment ID is required", "commentId");
 
     try {
-      // Check if comment exists and belongs to user
-      const existingComment = await prismaClient.comment.findUnique({
-        where: { id: commentId },
-      });
-      if (!existingComment)
-        throw new NotFoundError("Comment not found", "comment");
-      if (existingComment.authorId !== sessionUserId)
-        throw new AuthorizationError(
-          "You are not authorized to delete this comment"
-        );
-
       // delete comment
       const comment = await prismaClient.comment.delete({
         where: { id: commentId, authorId: sessionUserId, postId },
@@ -412,17 +398,6 @@ export class PostEngagementService {
       throw new ValidationError("Comment content cannot be empty", "content");
 
     try {
-      // Check if comment exists and belongs to user
-      const existingComment = await prismaClient.comment.findUnique({
-        where: { id: commentId },
-      });
-      if (!existingComment)
-        throw new NotFoundError("Comment not found", "comment");
-      if (existingComment.authorId !== sessionUserId)
-        throw new AuthorizationError(
-          "You are not authorized to update this comment"
-        );
-
       // update comment
       await prismaClient.comment.update({
         where: { id: commentId, authorId: sessionUserId },
@@ -508,21 +483,6 @@ export class PostEngagementService {
     if (!commentId) throw new ValidationError("Comment ID is required");
 
     try {
-      // Check if comment exists
-      const comment = await prismaClient.comment.findUnique({
-        where: { id: commentId },
-      });
-      if (!comment) throw new NotFoundError("Comment not found", "comment");
-
-      // Check if already liked
-      const isLikedComment =
-        await PostEngagementService.isCommentLikedBySessionUser(
-          sessionUserId,
-          commentId
-        );
-      if (isLikedComment)
-        throw new ValidationError("Comment already liked by user", "commentId");
-
       // create like
       const likedComment = await prismaClient.commentLike.create({
         data: {
@@ -556,15 +516,6 @@ export class PostEngagementService {
     if (!commentId) throw new ValidationError("Comment ID is required");
 
     try {
-      // Check if already liked
-      const isLikedComment =
-        await PostEngagementService.isCommentLikedBySessionUser(
-          sessionUserId,
-          commentId
-        );
-      if (isLikedComment)
-        throw new ValidationError("Comment already liked by user", "commentId");
-
       // delete like
       const dislikedcomment = await prismaClient.commentLike.delete({
         where: { userId_commentId: { userId: sessionUserId, commentId } },
@@ -746,15 +697,6 @@ export class PostEngagementService {
       // Check if post engagement exists
       await PostEngagementService.checkOrCreatePostEngagement(postId);
 
-      // Check if already bookmarked
-      const existingBookmark =
-        await PostEngagementService.isPostBookmarkedBySessionUser(
-          sessionUserId,
-          postId
-        );
-      if (existingBookmark)
-        throw new ValidationError("Post already bookmarked by user", "postId");
-
       // create bookmark
       await prismaClient.bookmark.create({
         data: {
@@ -778,15 +720,6 @@ export class PostEngagementService {
     if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
-      // Check if bookmark exists
-      const existingBookmark =
-        await PostEngagementService.isPostBookmarkedBySessionUser(
-          sessionUserId,
-          postId
-        );
-      if (!existingBookmark)
-        throw new NotFoundError("Bookmark not found", "bookmark");
-
       // delete bookmark
       await prismaClient.bookmark.delete({
         where: { userId_postId: { userId: sessionUserId, postId } },
