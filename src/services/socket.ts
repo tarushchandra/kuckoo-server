@@ -9,6 +9,12 @@ import {
   SOCKET_MESSAGE,
   SocketMaps,
 } from "../servers/socket/types";
+import {
+  toAppError,
+  ValidationError,
+  InternalServerError,
+  isAppError,
+} from "../utils/error";
 
 export class SocketService {
   private wss: WebSocketServer;
@@ -32,28 +38,51 @@ export class SocketService {
   }
 
   private async handleMessage(socket: WebSocket, data: any) {
-    const message = JSON.parse(data.toString("utf-8"));
+    // parsing the message
+    let message;
+    try {
+      message = JSON.parse(data.toString("utf-8"));
+    } catch (err) {
+      throw new ValidationError("Invalid JSON format in message", "message");
+    }
 
-    if (message.type === SOCKET_MESSAGE.CONNECTION_ESTABLISHED)
-      this.socketMessageHandler.handleConnectionEstablished(socket, message);
+    // validating the message
+    if (!message.type)
+      throw new ValidationError("Invalid message type", "type");
 
-    if (message.type === SOCKET_MESSAGE.CHAT_MESSAGE)
-      this.socketMessageHandler.handleChatMessage(socket, message);
+    try {
+      // handling the message
+      if (message.type === SOCKET_MESSAGE.CONNECTION_ESTABLISHED)
+        this.socketMessageHandler.handleConnectionEstablished(socket, message);
 
-    if (message.type === SOCKET_MESSAGE.CHAT_MESSAGES_ARE_SEEN_BY_THE_RECIPIENT)
-      this.socketMessageHandler.handleChatMessagesAreSeenByTheRecipient(
-        message
-      );
+      if (message.type === SOCKET_MESSAGE.CHAT_MESSAGE)
+        this.socketMessageHandler.handleChatMessage(socket, message);
 
-    if (message.type === SOCKET_MESSAGE.USER_IS_TYPING)
-      this.socketMessageHandler.handleUserIsTyping(socket, message);
+      if (
+        message.type === SOCKET_MESSAGE.CHAT_MESSAGES_ARE_SEEN_BY_THE_RECIPIENT
+      )
+        this.socketMessageHandler.handleChatMessagesAreSeenByTheRecipient(
+          message
+        );
 
-    if (message.type === SOCKET_MESSAGE.IS_USER_ONLINE)
-      this.socketMessageHandler.handleIsUserOnline(socket, message);
+      if (message.type === SOCKET_MESSAGE.USER_IS_TYPING)
+        this.socketMessageHandler.handleUserIsTyping(socket, message);
+
+      if (message.type === SOCKET_MESSAGE.IS_USER_ONLINE)
+        this.socketMessageHandler.handleIsUserOnline(socket, message);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
   }
 
   private async handleConnectionClosed(socket: WebSocket) {
-    this.socketMessageHandler.handleConnectionClosed(socket);
+    try {
+      this.socketMessageHandler.handleConnectionClosed(socket);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
   }
 
   private handleError(error: Error) {
@@ -76,230 +105,415 @@ class SocketMessageHandlerService {
   }
 
   public async handleConnectionClosed(socket: WebSocket) {
-    const targetUserId = this.maps.socketToUserId.get(socket);
+    if (!socket) throw new InternalServerError("Socket not found");
 
-    // sending the current user's offline status to other online users
-    const uniqueOnlineUsers = new Set<string>();
-    const lastSeenAt = Date.now();
+    try {
+      const targetUserId = this.maps.socketToUserId.get(socket);
 
-    this.maps.socketToRooms.get(socket)?.forEach((roomId) => {
-      const room = this.maps.roomToOnlineUsers.get(roomId);
-      if (!room) return;
+      // sending the current user's offline status to other online users
+      const uniqueOnlineUsers = new Set<string>();
+      const lastSeenAt = Date.now();
 
-      const userIndex = room.findIndex(
-        (onlineUser) => onlineUser.socket === socket
-      );
+      this.maps.socketToRooms.get(socket)?.forEach((roomId) => {
+        const room = this.maps.roomToOnlineUsers.get(roomId);
+        if (!room) return;
 
-      if (userIndex !== -1) {
-        room.splice(userIndex, 1);
+        const userIndex = room.findIndex(
+          (onlineUser) => onlineUser.socket === socket
+        );
 
-        room.forEach((onlineUser) => {
+        if (userIndex !== -1) {
+          room.splice(userIndex, 1);
+
+          room.forEach((onlineUser) => {
+            if (!uniqueOnlineUsers.has(onlineUser.userId)) {
+              uniqueOnlineUsers.add(onlineUser.userId);
+
+              if (onlineUser.socket.readyState === WebSocket.OPEN) {
+                onlineUser.socket.send(
+                  JSON.stringify({
+                    type: SOCKET_MESSAGE.USER_IS_OFFLINE,
+                    userId: targetUserId,
+                    lastSeenAt,
+                  })
+                );
+              }
+            }
+          });
+
+          // check if the room is empty and remove it
+          if (room.length === 0) this.maps.roomToOnlineUsers.delete(roomId);
+        }
+      });
+
+      if (targetUserId) {
+        await UserService.setLastSeenAt(targetUserId, lastSeenAt);
+        this.maps.userIdToSocket.delete(targetUserId);
+      }
+      this.maps.socketToUserId.delete(socket);
+      this.maps.socketToRooms.delete(socket);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
+  }
+
+  public async handleConnectionEstablished(socket: WebSocket, message: any) {
+    if (!socket) throw new InternalServerError("Socket not found");
+    if (!message.userId)
+      throw new ValidationError("User id not found", "userId");
+
+    try {
+      const userId = message.userId;
+      const chats = await prismaClient.chat.findMany({
+        where: { members: { some: { userId } } },
+        include: { members: { where: { userId: { not: userId } } } },
+      });
+
+      // sending the current user's online status to other online users
+      const uniqueOnlineUsers = new Set();
+      chats.forEach((chat) => {
+        if (this.maps.roomToOnlineUsers.size === 0) return;
+
+        this.maps.roomToOnlineUsers.get(chat.id)?.forEach((onlineUser) => {
           if (!uniqueOnlineUsers.has(onlineUser.userId)) {
             uniqueOnlineUsers.add(onlineUser.userId);
 
-            if (onlineUser.socket.readyState === WebSocket.OPEN) {
+            if (
+              onlineUser.socket.readyState === WebSocket.OPEN &&
+              onlineUser.socket !== socket
+            ) {
               onlineUser.socket.send(
                 JSON.stringify({
-                  type: SOCKET_MESSAGE.USER_IS_OFFLINE,
-                  userId: targetUserId,
-                  lastSeenAt,
+                  type: SOCKET_MESSAGE.USER_IS_ONLINE,
+                  userId: userId,
+                } as any)
+              );
+              socket.send(
+                JSON.stringify({
+                  type: SOCKET_MESSAGE.USER_IS_ONLINE,
+                  userId: onlineUser.userId,
                 })
               );
             }
           }
         });
-
-        // check if the room is empty and remove it
-        if (room.length === 0) this.maps.roomToOnlineUsers.delete(roomId);
-      }
-    });
-
-    if (targetUserId) {
-      await UserService.setLastSeenAt(targetUserId, lastSeenAt);
-      this.maps.userIdToSocket.delete(targetUserId);
-    }
-    this.maps.socketToUserId.delete(socket);
-    this.maps.socketToRooms.delete(socket);
-  }
-
-  public async handleConnectionEstablished(socket: WebSocket, message: any) {
-    const userId = message.userId;
-    const chats = await prismaClient.chat.findMany({
-      where: { members: { some: { userId } } },
-      include: { members: { where: { userId: { not: userId } } } },
-    });
-
-    // sending the current user's online status to other online users
-    const uniqueOnlineUsers = new Set();
-    chats.forEach((chat) => {
-      if (this.maps.roomToOnlineUsers.size === 0) return;
-
-      this.maps.roomToOnlineUsers.get(chat.id)?.forEach((onlineUser) => {
-        if (!uniqueOnlineUsers.has(onlineUser.userId)) {
-          uniqueOnlineUsers.add(onlineUser.userId);
-
-          if (
-            onlineUser.socket.readyState === WebSocket.OPEN &&
-            onlineUser.socket !== socket
-          ) {
-            onlineUser.socket.send(
-              JSON.stringify({
-                type: SOCKET_MESSAGE.USER_IS_ONLINE,
-                userId: userId,
-              } as any)
-            );
-            socket.send(
-              JSON.stringify({
-                type: SOCKET_MESSAGE.USER_IS_ONLINE,
-                userId: onlineUser.userId,
-              })
-            );
-          }
-        }
       });
-    });
 
-    // setting current user as online in one of the active rooms
-    chats.forEach((chat) => {
-      if (!this.maps.roomToOnlineUsers.has(chat.id))
-        this.maps.roomToOnlineUsers.set(chat.id, []);
-      if (!this.maps.socketToRooms.has(socket))
-        this.maps.socketToRooms.set(socket, []);
+      // setting current user as online in one of the active rooms
+      chats.forEach((chat) => {
+        if (!this.maps.roomToOnlineUsers.has(chat.id))
+          this.maps.roomToOnlineUsers.set(chat.id, []);
+        if (!this.maps.socketToRooms.has(socket))
+          this.maps.socketToRooms.set(socket, []);
 
-      this.maps.roomToOnlineUsers
-        .get(chat.id)
-        ?.push({ userId: userId, socket });
-      this.maps.socketToRooms.get(socket)?.push(chat.id);
-    });
+        this.maps.roomToOnlineUsers
+          .get(chat.id)
+          ?.push({ userId: userId, socket });
+        this.maps.socketToRooms.get(socket)?.push(chat.id);
+      });
 
-    // setting the (userId -> socket && socket -> userId) map for quick retreival
-    this.maps.userIdToSocket.set(userId, socket);
-    this.maps.socketToUserId.set(socket, userId);
+      // setting the (userId -> socket && socket -> userId) map for quick retreival
+      this.maps.userIdToSocket.set(userId, socket);
+      this.maps.socketToUserId.set(socket, userId);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
   }
 
   public async handleChatMessage(socket: WebSocket, message: any) {
-    // sending an acknowledegement of "MESSAGE_RECIEVED_BY_SERVER" back to the sender
-    socket.send(
-      JSON.stringify({
-        type: SOCKET_MESSAGE.CHAT_MESSAGE_IS_RECIEVED_BY_THE_SERVER,
-        chatId: message.chatId,
-        messageId: message.message.id,
-      })
-    );
-
-    // initializing chatId
-    let chatId = message.chatId;
-    let messagesWithTempAndActualIds: any[] = [];
-
-    // if the chat is not created
-    if (typeof message.chatId === "number") {
-      // sending the message ("with temporary message IDs") to whom sender wants to start the chat
-      const targetUserSocket = this.maps.userIdToSocket.get(
-        message.targetUsers[0].id
-      );
-      if (targetUserSocket?.readyState === WebSocket.OPEN)
-        targetUserSocket.send(JSON.stringify(message));
-
-      // storing the current chat as "processing" in redis state
-      const isChatCreated = await redisClient.exists(
-        `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`
-      );
-      await redisClient.rpush(
-        `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`,
-        JSON.stringify(message.message)
-      );
-      if (isChatCreated) return;
-
-      // creating the chat
-      const chat = await ChatService.findOrCreateChat(
-        message.message.sender.id,
-        message.targetUsers.map((x: any) => x.id)
-      );
-      chatId = chat.id;
-
-      // storing messages to DB
-      const tempMessages = await redisClient.lrange(
-        `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`,
-        0,
-        -1
-      );
-      const parsedTempMessages = tempMessages.map((x) => JSON.parse(x));
-      const storedMessages: any = await ChatService.createMessages(
-        message.message.sender.id,
-        chatId,
-        parsedTempMessages
+    if (!socket) throw new InternalServerError("Socket not found");
+    if (!message.chatId)
+      throw new ValidationError("Chat ID is required", "chatId");
+    if (!message.message)
+      throw new ValidationError("Message is required", "message");
+    if (!message.message.sender?.id)
+      throw new ValidationError(
+        "Message sender ID is required",
+        "message.sender.id"
       );
 
-      // updating the messagesWithTempAndActualIds
-      let temporaryMessagesIndex = 0;
-      let actualMessagesIndex = storedMessages.length - 1;
-      while (
-        temporaryMessagesIndex < parsedTempMessages.length &&
-        actualMessagesIndex >= 0
-      ) {
-        messagesWithTempAndActualIds.unshift({
-          temporaryMessageId: parsedTempMessages[temporaryMessagesIndex].id,
-          actualMessageId: storedMessages[actualMessagesIndex].id,
+    try {
+      // sending an acknowledegement of "MESSAGE_RECIEVED_BY_SERVER" back to the sender
+      socket.send(
+        JSON.stringify({
+          type: SOCKET_MESSAGE.CHAT_MESSAGE_IS_RECIEVED_BY_THE_SERVER,
+          chatId: message.chatId,
+          messageId: message.message.id,
+        })
+      );
+
+      // initializing chatId
+      let chatId = message.chatId;
+      let messagesWithTempAndActualIds: any[] = [];
+
+      // if the chat is not created
+      if (typeof message.chatId === "number") {
+        // Validate target users for new chat
+        if (!message.targetUsers || !Array.isArray(message.targetUsers))
+          throw new ValidationError(
+            "Target users are required for new chat",
+            "targetUsers"
+          );
+        if (message.targetUsers.length === 0 || !message.targetUsers[0]?.id)
+          throw new ValidationError(
+            "Valid target user ID is required",
+            "targetUsers[0].id"
+          );
+
+        // sending the message ("with temporary message IDs") to whom sender wants to start the chat
+        const targetUserSocket = this.maps.userIdToSocket.get(
+          message.targetUsers[0].id
+        );
+        if (targetUserSocket?.readyState === WebSocket.OPEN)
+          targetUserSocket.send(JSON.stringify(message));
+
+        // storing the current chat as "processing" in redis state
+        const isChatCreated = await redisClient.exists(
+          `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`
+        );
+        await redisClient.rpush(
+          `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`,
+          JSON.stringify(message.message)
+        );
+        if (isChatCreated) return;
+
+        // creating the chat
+        const chat = await ChatService.findOrCreateChat(
+          message.message.sender.id,
+          message.targetUsers.map((x: any) => x.id)
+        );
+        chatId = chat.id;
+
+        // storing messages to DB
+        const tempMessages = await redisClient.lrange(
+          `CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`,
+          0,
+          -1
+        );
+        const parsedTempMessages = tempMessages.map((x) => JSON.parse(x));
+        const storedMessages: any = await ChatService.createMessages(
+          message.message.sender.id,
+          chatId,
+          parsedTempMessages
+        );
+
+        // updating the messagesWithTempAndActualIds
+        let temporaryMessagesIndex = 0;
+        let actualMessagesIndex = storedMessages.length - 1;
+        while (
+          temporaryMessagesIndex < parsedTempMessages.length &&
+          actualMessagesIndex >= 0
+        ) {
+          messagesWithTempAndActualIds.unshift({
+            temporaryMessageId: parsedTempMessages[temporaryMessagesIndex].id,
+            actualMessageId: storedMessages[actualMessagesIndex].id,
+            sender: {
+              id: message.message.sender.id,
+            },
+          });
+          temporaryMessagesIndex++;
+          actualMessagesIndex--;
+        }
+
+        // if the newly created chat is immediately seen by the reciepient
+        const areChatMessagesSeen = await redisClient.exists(
+          `SEEN_MESSAGES:${message.chatId}`
+        );
+        if (areChatMessagesSeen) {
+          const seenChatMessages = await redisClient.lrange(
+            `SEEN_MESSAGES:${message.chatId}`,
+            0,
+            -1
+          );
+          seenChatMessages.forEach(
+            async (x) => await redisClient.rpush(`SEEN_MESSAGES:${chatId}`, x)
+          );
+          await redisClient.del(`SEEN_MESSAGES:${message.chatId}`);
+        }
+
+        // deleting the "temporary chat messages data" from the redis state
+        await redisClient.del(`CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`);
+
+        // ------------ updating roomToOnlineUsersMap, socketToRoomsMap -----------------
+        const onlineUsers: OnlineUser[] = [];
+        if (socket?.readyState === WebSocket.OPEN) {
+          onlineUsers.push({
+            userId: message.message.sender.id,
+            socket,
+          });
+          // updating socketToRoomsMap for sender
+          if (this.maps.socketToRooms.has(socket))
+            this.maps.socketToRooms.get(socket)?.push(chatId);
+          else this.maps.socketToRooms.set(socket, [chatId]);
+        }
+        if (targetUserSocket?.readyState === WebSocket.OPEN) {
+          onlineUsers.push({
+            userId: message.targetUsers[0].id,
+            socket: targetUserSocket,
+          });
+          // updating socketToRoomsMap for target
+          if (this.maps.socketToRooms.has(targetUserSocket))
+            this.maps.socketToRooms.get(targetUserSocket)?.push(chatId);
+          else this.maps.socketToRooms.set(targetUserSocket, [chatId]);
+        }
+
+        this.maps.roomToOnlineUsers.set(chatId, onlineUsers);
+      }
+      // if the chat is already created
+      else {
+        // sending the message ("with temporary message IDs") to all connected users except the sender of the message
+        this.maps.roomToOnlineUsers
+          .get(message.chatId)
+          ?.forEach((onlineUser) => {
+            if (
+              onlineUser.socket.readyState === WebSocket.OPEN &&
+              onlineUser.socket !== socket
+            )
+              onlineUser.socket.send(JSON.stringify(message));
+          });
+
+        // storing message
+        const storedMessages: any = await ChatService.createMessages(
+          message.message.sender.id,
+          chatId,
+          [message.message]
+        );
+
+        messagesWithTempAndActualIds.push({
+          temporaryMessageId: message.message.id,
+          actualMessageId: storedMessages[0].id,
           sender: {
             id: message.message.sender.id,
           },
         });
-        temporaryMessagesIndex++;
-        actualMessagesIndex--;
       }
 
-      // if the newly created chat is immediately seen by the reciepient
-      const areChatMessagesSeen = await redisClient.exists(
-        `SEEN_MESSAGES:${message.chatId}`
+      // ---------------
+
+      // sending the "actual message IDs" OR "actual newly created chatId" to all the users
+      this.maps.roomToOnlineUsers.get(chatId)?.forEach((onlineUser) => {
+        if (onlineUser.socket.readyState === WebSocket.OPEN) {
+          onlineUser.socket.send(
+            JSON.stringify({
+              type: SOCKET_MESSAGE.ACTUAL_CHAT_OR_MESSAGES_IDS,
+              ...(typeof message.chatId === "number" && {
+                chat: {
+                  temporaryChatId: message.chatId,
+                  actualChatId: chatId,
+                  creator: message.creator,
+                },
+              }),
+              messages: {
+                chatId,
+                messages: messagesWithTempAndActualIds,
+              },
+            })
+          );
+        }
+      });
+
+      // setting messages as "seen"
+      const isSeenMessages = await redisClient.exists(
+        `SEEN_MESSAGES:${chatId}`
       );
-      if (areChatMessagesSeen) {
-        const seenChatMessages = await redisClient.lrange(
-          `SEEN_MESSAGES:${message.chatId}`,
-          0,
-          -1
+      if (!isSeenMessages) return;
+      const seenMessages = await redisClient.lrange(
+        `SEEN_MESSAGES:${chatId}`,
+        0,
+        -1
+      );
+
+      const parsedSeenMessages: any[] = [];
+      seenMessages.forEach((x) => {
+        const parsedMessage = JSON.parse(x);
+        const finalMessage = messagesWithTempAndActualIds.find(
+          (y) => y.temporaryMessageId === parsedMessage.message.id
         );
-        seenChatMessages.forEach(
-          async (x) => await redisClient.rpush(`SEEN_MESSAGES:${chatId}`, x)
-        );
-        await redisClient.del(`SEEN_MESSAGES:${message.chatId}`);
+        if (!finalMessage) return;
+        parsedMessage.message.id = finalMessage.actualMessageId;
+        parsedSeenMessages.push(parsedMessage);
+      });
+
+      const seenByIdToMessagesMap = new Map();
+      parsedSeenMessages.forEach((x) => {
+        if (!seenByIdToMessagesMap.has(x.seenBy.id))
+          seenByIdToMessagesMap.set(x.seenBy.id, []);
+        seenByIdToMessagesMap.get(x.seenBy.id)?.push(x.message);
+      });
+
+      for (const entry of seenByIdToMessagesMap.entries()) {
+        const [seenById, messages] = entry;
+        await ChatService.setMessagesAsSeen(seenById, chatId, messages);
       }
 
-      // deleting the "temporary chat messages data" from the redis state
-      await redisClient.del(`CHAT_CREATED_WITH_TEMP_ID:${message.chatId}`);
-
-      // ------------ updating roomToOnlineUsersMap, socketToRoomsMap -----------------
-      const onlineUsers: OnlineUser[] = [];
-      if (socket?.readyState === WebSocket.OPEN) {
-        onlineUsers.push({
-          userId: message.message.sender.id,
-          socket,
-        });
-        // updating socketToRoomsMap for sender
-        if (this.maps.socketToRooms.has(socket))
-          this.maps.socketToRooms.get(socket)?.push(chatId);
-        else this.maps.socketToRooms.set(socket, [chatId]);
-      }
-      if (targetUserSocket?.readyState === WebSocket.OPEN) {
-        onlineUsers.push({
-          userId: message.targetUsers[0].id,
-          socket: targetUserSocket,
-        });
-        // updating socketToRoomsMap for target
-        if (this.maps.socketToRooms.has(targetUserSocket))
-          this.maps.socketToRooms.get(targetUserSocket)?.push(chatId);
-        else this.maps.socketToRooms.set(targetUserSocket, [chatId]);
-      }
-
-      // updating roomToOnlineUsersMap
-      this.maps.roomToOnlineUsers.set(chatId, onlineUsers);
-
-      // console.log("------------ new chat created -----------");
-      // console.log("roomToOnlineUsersMap -", roomToOnlineUsersMap);
-      // console.log("socketToRoomsMap -", socketToRoomsMap);
+      await redisClient.del(`SEEN_MESSAGES:${chatId}`);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
-    // if the chat is already created
-    else {
-      // sending the message ("with temporary message IDs") to all connected users except the sender of the message
+  }
+
+  public async handleChatMessagesAreSeenByTheRecipient(message: any) {
+    if (!message.messages || !Array.isArray(message.messages))
+      throw new ValidationError("Messages array is required", "messages");
+    if (!message.chatId)
+      throw new ValidationError("Chat ID is required", "chatId");
+    if (!message.seenBy?.id)
+      throw new ValidationError("Seen by ID is required", "seenBy.id");
+
+    try {
+      const { messages, chatId, seenBy } = message;
+
+      const senderIdToMessagesMap = new Map<string, string[]>();
+      let isMessageWithTemporaryIdPresent = false;
+
+      messages.forEach(async (message: any) => {
+        if (!senderIdToMessagesMap.has(message.sender.id))
+          senderIdToMessagesMap.set(message.sender.id, []);
+        senderIdToMessagesMap.get(message.sender.id)?.push(message.content);
+
+        if (typeof message.id === "number") {
+          isMessageWithTemporaryIdPresent = true;
+
+          await redisClient.rpush(
+            `SEEN_MESSAGES:${chatId}`,
+            JSON.stringify({ message: { id: message.id }, seenBy })
+          );
+        }
+      });
+
+      for (const entry of senderIdToMessagesMap.entries()) {
+        const [senderId, messages] = entry;
+        const senderSocket = this.maps.userIdToSocket.get(senderId);
+
+        if (senderSocket?.readyState === WebSocket.OPEN) {
+          senderSocket.send(
+            JSON.stringify({
+              type: message.type,
+              chatId,
+              messages,
+              seenBy,
+            })
+          );
+        }
+      }
+
+      if (!isMessageWithTemporaryIdPresent)
+        await ChatService.setMessagesAsSeen(seenBy.id, chatId, messages);
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
+  }
+
+  public handleUserIsTyping(socket: WebSocket, message: any) {
+    if (!socket) throw new InternalServerError("Socket not found");
+    if (!message.chatId)
+      throw new ValidationError("Chat ID is required", "chatId");
+
+    try {
       this.maps.roomToOnlineUsers.get(message.chatId)?.forEach((onlineUser) => {
         if (
           onlineUser.socket.readyState === WebSocket.OPEN &&
@@ -307,147 +521,35 @@ class SocketMessageHandlerService {
         )
           onlineUser.socket.send(JSON.stringify(message));
       });
-
-      // storing message
-      const storedMessages: any = await ChatService.createMessages(
-        message.message.sender.id,
-        chatId,
-        [message.message]
-      );
-
-      messagesWithTempAndActualIds.push({
-        temporaryMessageId: message.message.id,
-        actualMessageId: storedMessages[0].id,
-        sender: {
-          id: message.message.sender.id,
-        },
-      });
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
     }
-
-    // ---------------
-
-    console.log("messagesWithTempAndActualIds -", messagesWithTempAndActualIds);
-
-    // sending the "actual message IDs" OR "actual newly created chatId" to all the users
-    this.maps.roomToOnlineUsers.get(chatId)?.forEach((onlineUser) => {
-      if (onlineUser.socket.readyState === WebSocket.OPEN) {
-        onlineUser.socket.send(
-          JSON.stringify({
-            type: SOCKET_MESSAGE.ACTUAL_CHAT_OR_MESSAGES_IDS,
-            ...(typeof message.chatId === "number" && {
-              chat: {
-                temporaryChatId: message.chatId,
-                actualChatId: chatId,
-                creator: message.creator,
-              },
-            }),
-            messages: {
-              chatId,
-              messages: messagesWithTempAndActualIds,
-            },
-          })
-        );
-      }
-    });
-
-    // setting messages as "seen"
-    const isSeenMessages = await redisClient.exists(`SEEN_MESSAGES:${chatId}`);
-    if (!isSeenMessages) return;
-    const seenMessages = await redisClient.lrange(
-      `SEEN_MESSAGES:${chatId}`,
-      0,
-      -1
-    );
-
-    const parsedSeenMessages: any[] = [];
-    seenMessages.forEach((x) => {
-      const parsedMessage = JSON.parse(x);
-      const finalMessage = messagesWithTempAndActualIds.find(
-        (y) => y.temporaryMessageId === parsedMessage.message.id
-      );
-      if (!finalMessage) return;
-      parsedMessage.message.id = finalMessage.actualMessageId;
-      parsedSeenMessages.push(parsedMessage);
-    });
-
-    const seenByIdToMessagesMap = new Map();
-    parsedSeenMessages.forEach((x) => {
-      if (!seenByIdToMessagesMap.has(x.seenBy.id))
-        seenByIdToMessagesMap.set(x.seenBy.id, []);
-      seenByIdToMessagesMap.get(x.seenBy.id)?.push(x.message);
-    });
-
-    for (const entry of seenByIdToMessagesMap.entries()) {
-      const [seenById, messages] = entry;
-      await ChatService.setMessagesAsSeen(seenById, chatId, messages);
-    }
-
-    await redisClient.del(`SEEN_MESSAGES:${chatId}`);
-  }
-
-  public async handleChatMessagesAreSeenByTheRecipient(message: any) {
-    const { messages, chatId, seenBy } = message;
-
-    const senderIdToMessagesMap = new Map<string, string[]>();
-    let isMessageWithTemporaryIdPresent = false;
-
-    messages.forEach(async (message: any) => {
-      if (!senderIdToMessagesMap.has(message.sender.id))
-        senderIdToMessagesMap.set(message.sender.id, []);
-      senderIdToMessagesMap.get(message.sender.id)?.push(message.content);
-
-      if (typeof message.id === "number") {
-        isMessageWithTemporaryIdPresent = true;
-
-        await redisClient.rpush(
-          `SEEN_MESSAGES:${chatId}`,
-          JSON.stringify({ message: { id: message.id }, seenBy })
-        );
-      }
-    });
-
-    for (const entry of senderIdToMessagesMap.entries()) {
-      const [senderId, messages] = entry;
-      const senderSocket = this.maps.userIdToSocket.get(senderId);
-
-      if (senderSocket?.readyState === WebSocket.OPEN) {
-        senderSocket.send(
-          JSON.stringify({
-            type: message.type,
-            chatId,
-            messages,
-            seenBy,
-          })
-        );
-      }
-    }
-
-    if (!isMessageWithTemporaryIdPresent)
-      await ChatService.setMessagesAsSeen(seenBy.id, chatId, messages);
-  }
-
-  public handleUserIsTyping(socket: WebSocket, message: any) {
-    this.maps.roomToOnlineUsers.get(message.chatId)?.forEach((onlineUser) => {
-      if (
-        onlineUser.socket.readyState === WebSocket.OPEN &&
-        onlineUser.socket !== socket
-      )
-        onlineUser.socket.send(JSON.stringify(message));
-    });
   }
 
   public async handleIsUserOnline(socket: WebSocket, message: any) {
-    const userSocket = this.maps.userIdToSocket.get(message.userId);
+    if (!socket) throw new InternalServerError("Socket not found");
+    if (!message.userId)
+      throw new ValidationError("User ID is required", "userId");
 
-    if (userSocket?.readyState !== WebSocket.OPEN) {
-      const lastSeenAt = await UserService.getLastSeenAt(message.userId);
-      socket.send(JSON.stringify({ ...message, isOnline: false, lastSeenAt }));
-    } else
-      socket.send(
-        JSON.stringify({
-          ...message,
-          isOnline: true,
-        })
-      );
+    try {
+      const userSocket = this.maps.userIdToSocket.get(message.userId);
+
+      if (userSocket?.readyState !== WebSocket.OPEN) {
+        const lastSeenAt = await UserService.getLastSeenAt(message.userId);
+        socket.send(
+          JSON.stringify({ ...message, isOnline: false, lastSeenAt })
+        );
+      } else
+        socket.send(
+          JSON.stringify({
+            ...message,
+            isOnline: true,
+          })
+        );
+    } catch (err) {
+      if (isAppError(err)) throw err;
+      throw toAppError(err);
+    }
   }
 }
