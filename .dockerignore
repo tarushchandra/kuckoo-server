@@ -4,4 +4,5 @@ npm-debug.log
 .git
 .env
 Dockerfile
-deploy
+/build
+/generated
