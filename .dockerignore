@@ -6,3 +6,4 @@ npm-debug.log
 Dockerfile
 /build
 /generated
+.DS_Store
