@@ -20,7 +20,7 @@ server {
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
     location / {
-        proxy_pass http://express_server:${EXPRESS_SERVER_PORT};   # 'express_server' is your backend container name
+        proxy_pass http://express_server:${PORT};   # 'express_server' is your backend container name
         proxy_http_version 1.1;
 
         proxy_set_header Host $host;

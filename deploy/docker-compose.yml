@@ -27,9 +27,8 @@ services:
     container_name: certbot
     depends_on:
       - nginx
-    environment:
-      - DOMAIN=${DOMAIN}
-      - EMAIL=${EMAIL}
+    env_file:
+      - ../.env
     volumes:
       - ./certbot/www:/var/www/certbot
       - ./certbot/conf:/etc/letsencrypt

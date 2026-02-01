@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Load env variables from .env file
-export $(grep -v '^#' .env | xargs)
+export $(grep -v '^#' ../.env | xargs)
 
 # Certificate path
 CERT_PATH="./certbot/conf/live/$DOMAIN/fullchain.pem"
@@ -50,7 +50,7 @@ fi
 # If certificate is expired or not found, issue a new one
 if [ "$CERT_EXPIRED" = true ]; then
     step "Preparing the nginx.conf in HTTP mode"
-    envsubst '$DOMAIN $EXPRESS_SERVER_PORT' < ./nginx/nginx.http.conf.template > ./nginx/nginx.conf
+    envsubst '$DOMAIN $PORT' < ./nginx/nginx.http.conf.template > ./nginx/nginx.conf
 
     step "Starting containers in HTTP mode"
     docker compose up -d express nginx   
@@ -71,7 +71,7 @@ fi
 # ---------------------------------------------------------
 
 step "Preparing the nginx.conf in HTTPS mode"
-envsubst '$DOMAIN $EXPRESS_SERVER_PORT' < ./nginx/nginx.https.conf.template > ./nginx/nginx.conf
+envsubst '$DOMAIN $PORT' < ./nginx/nginx.https.conf.template > ./nginx/nginx.conf
 
 # ---------------------------------------------------------
 
