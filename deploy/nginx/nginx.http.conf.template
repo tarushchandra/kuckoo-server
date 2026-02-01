@@ -1,0 +1,14 @@
+server {
+    listen 80;
+    server_name ${DOMAIN};
+
+    # Reverse proxy to your Node.js backend running inside Docker
+    location / {
+        proxy_pass http://express_server:${PORT};   # 'express_server' is your backend container name
+        proxy_http_version 1.1;
+    }
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+}

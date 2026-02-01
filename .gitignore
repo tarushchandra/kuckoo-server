@@ -2,3 +2,4 @@
 .env
 /build
 /generated/prisma
+.DS_Store
