@@ -8,6 +8,7 @@ import { Auth } from "./auth";
 import { Response } from "express";
 import { JwtUser } from "../services/auth";
 import { graphqlErrorFormatter } from "../utils/error";
+import { observabilityPlugin } from "../plugins/graphql/observability";
 
 export interface GraphqlContext {
   user?: JwtUser | null;
@@ -68,6 +69,7 @@ async function createApolloGraphQLServer() {
       ...Chat.resolvers.extraResolvers,
     },
     formatError: graphqlErrorFormatter,
+    plugins: [observabilityPlugin()],
   });
 
   await gqlServer.start();

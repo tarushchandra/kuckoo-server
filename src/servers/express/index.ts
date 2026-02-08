@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { handleGraphqlMiddleware } from "../../middlewares/graphql";
+import { handleObservabilityMiddleware } from "../../middlewares/observability";
 
 async function initExpressApp() {
   const app = express();
@@ -10,6 +11,7 @@ async function initExpressApp() {
   app.use(express.json());
   app.use(cookieParser());
   app.use(cors({ origin: process.env.FRONTEND_SERVER_URL, credentials: true }));
+  app.use(handleObservabilityMiddleware);
   app.use("/graphql", await handleGraphqlMiddleware());
 
   return app;
