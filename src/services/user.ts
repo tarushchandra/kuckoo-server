@@ -16,7 +16,7 @@ class UserService {
   // Utility functions
   private static async hashPassword(
     password: string,
-    saltRounds: number
+    saltRounds: number,
   ): Promise<string> {
     try {
       return await bcrypt.hash(password, saltRounds);
@@ -27,7 +27,7 @@ class UserService {
 
   private static async compareHashedPassword(
     inputPassword: string,
-    hashedPassword: string
+    hashedPassword: string,
   ): Promise<boolean> {
     try {
       return await bcrypt.compare(inputPassword, hashedPassword);
@@ -69,7 +69,7 @@ class UserService {
           lastName: payload.lastName,
           email: payload.email,
           username: payload.username,
-          profileImageURL: payload.profileImageURL || null,
+          profileImageURL: payload.profileImageURL || undefined,
           password: payload.password
             ? await UserService.hashPassword(payload.password, 10)
             : null,
@@ -172,7 +172,7 @@ class UserService {
 
       const isMatch = await UserService.compareHashedPassword(
         password,
-        user.password
+        user.password,
       );
       if (!isMatch) throw new AuthenticationError("Credentials not found");
 
@@ -187,7 +187,7 @@ class UserService {
 
   // Service Functions (Queries and Mutations Resolvers)
   public static async signUpWithEmailAndPassword(
-    payload: any
+    payload: any,
   ): Promise<boolean> {
     if (!payload) throw new ValidationError("User data is required", "user");
 
@@ -214,7 +214,7 @@ class UserService {
   }
 
   public static async getUserByUsername(
-    username: string
+    username: string,
   ): Promise<User | null> {
     if (!username)
       throw new ValidationError("Username is required", "username");
@@ -250,7 +250,7 @@ class UserService {
 
   public static async getUsers(
     sessionUserId: string,
-    searchText: string
+    searchText: string,
   ): Promise<User[]> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -297,7 +297,7 @@ class UserService {
   public static async getUsersWithout(
     sessionUserId: string,
     targetUserIds: string[],
-    searchText: string
+    searchText: string,
   ): Promise<User[]> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -306,12 +306,12 @@ class UserService {
     if (!targetUserIds)
       throw new ValidationError(
         "Target user IDs are required",
-        "targetUserIds"
+        "targetUserIds",
       );
     if (!Array.isArray(targetUserIds))
       throw new ValidationError(
         "Target user IDs must be an array",
-        "targetUserIds"
+        "targetUserIds",
       );
 
     if (searchText.length === 0) return [];
@@ -374,7 +374,7 @@ class UserService {
       await NotificationService.createNotification(
         NotificationType.FOLLOW,
         from,
-        to
+        to,
       );
 
       // invalidate relevant caches
@@ -386,12 +386,12 @@ class UserService {
 
       // invalidate mutual followers cache for the followed user except the session user
       const cachedMutualFollowers = await redisClient.keys(
-        `MUTUAL_FOLLOWERS:*:${to}`
+        `MUTUAL_FOLLOWERS:*:${to}`,
       );
       await Promise.all(
         cachedMutualFollowers
           .filter((cachedKey) => !cachedKey.includes(from))
-          .map((cachedKey) => redisClient.del(cachedKey))
+          .map((cachedKey) => redisClient.del(cachedKey)),
       );
 
       // Clear followers and followings lists
@@ -430,7 +430,7 @@ class UserService {
       await NotificationService.deleteNotification(
         NotificationType.FOLLOW,
         from,
-        to
+        to,
       );
 
       // invalidate relevant caches
@@ -441,12 +441,12 @@ class UserService {
       ]);
 
       const cachedMutualFollowers = await redisClient.keys(
-        `MUTUAL_FOLLOWERS:*:${to}`
+        `MUTUAL_FOLLOWERS:*:${to}`,
       );
       await Promise.all(
         cachedMutualFollowers
           .filter((key) => !key.includes(from))
-          .map((key) => redisClient.del(key))
+          .map((key) => redisClient.del(key)),
       );
 
       // Clear followers and followings lists
@@ -470,7 +470,7 @@ class UserService {
 
   public static async removeFollower(
     sessionUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<boolean> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -527,7 +527,7 @@ class UserService {
 
   public static async getFollowers(
     sessionUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<User[]> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -536,7 +536,7 @@ class UserService {
 
     try {
       const cachedFollowers = await redisClient.get(
-        `TOTAL_FOLLOWERS:${sessionUserId}:${targetUserId}`
+        `TOTAL_FOLLOWERS:${sessionUserId}:${targetUserId}`,
       );
       if (cachedFollowers) return JSON.parse(cachedFollowers);
 
@@ -553,11 +553,11 @@ class UserService {
       const rearrangedFollowers =
         UserService.getRearrangedConnectionsBasedOnSessionUser(
           sessionUserId,
-          followers
+          followers,
         );
       await redisClient.set(
         `TOTAL_FOLLOWERS:${sessionUserId}:${targetUserId}`,
-        JSON.stringify(rearrangedFollowers)
+        JSON.stringify(rearrangedFollowers),
       );
 
       return rearrangedFollowers;
@@ -569,7 +569,7 @@ class UserService {
 
   public static async getFollowings(
     sessionUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<User[]> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -578,7 +578,7 @@ class UserService {
 
     try {
       const cachedFollowings = await redisClient.get(
-        `TOTAL_FOLLOWINGS:${sessionUserId}:${targetUserId}`
+        `TOTAL_FOLLOWINGS:${sessionUserId}:${targetUserId}`,
       );
       if (cachedFollowings) return JSON.parse(cachedFollowings);
 
@@ -595,11 +595,11 @@ class UserService {
       const rearrangedFollowings =
         UserService.getRearrangedConnectionsBasedOnSessionUser(
           sessionUserId,
-          followings
+          followings,
         );
       await redisClient.set(
         `TOTAL_FOLLOWINGS:${sessionUserId}:${targetUserId}`,
-        JSON.stringify(rearrangedFollowings)
+        JSON.stringify(rearrangedFollowings),
       );
       return rearrangedFollowings;
     } catch (err) {
@@ -626,7 +626,7 @@ class UserService {
   }
 
   public static async getFollowingsCount(
-    targetUserId: string
+    targetUserId: string,
   ): Promise<number> {
     if (!targetUserId)
       throw new ValidationError("Target user ID is required", "targetUserId");
@@ -646,7 +646,7 @@ class UserService {
 
   public static async isFollowing(
     sessionUserId: string,
-    targetUserId: string
+    targetUserId: string,
   ): Promise<boolean | null> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -674,14 +674,14 @@ class UserService {
 
   public static async getMutualFollowers(
     sessionUserId: string,
-    targetUsername: string
+    targetUsername: string,
   ): Promise<User[]> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
     if (!targetUsername)
       throw new ValidationError(
         "Target username is required",
-        "targetUsername"
+        "targetUsername",
       );
 
     try {
@@ -692,7 +692,7 @@ class UserService {
 
       // check in cache
       const cachedMutualFollowers = await redisClient.get(
-        `MUTUAL_FOLLOWERS:${sessionUserId}:${targetUser.id}`
+        `MUTUAL_FOLLOWERS:${sessionUserId}:${targetUser.id}`,
       );
       if (cachedMutualFollowers) return JSON.parse(cachedMutualFollowers);
 
@@ -709,13 +709,13 @@ class UserService {
       const targetUserFollowers = result.map((follow) => follow.follower);
       const mutualFollowers = UserService.getMutualConnections(
         sessionUserId,
-        targetUserFollowers
+        targetUserFollowers,
       );
 
       // store in cache
       await redisClient.set(
         `MUTUAL_FOLLOWERS:${sessionUserId}:${targetUser.id}`,
-        JSON.stringify(mutualFollowers)
+        JSON.stringify(mutualFollowers),
       );
 
       return mutualFollowers;
@@ -730,7 +730,7 @@ class UserService {
 
     try {
       const cachedRecommendedUsers = await redisClient.get(
-        `RECOMMENDED_USERS:${userId}`
+        `RECOMMENDED_USERS:${userId}`,
       );
       if (cachedRecommendedUsers) return JSON.parse(cachedRecommendedUsers);
 
@@ -753,7 +753,7 @@ class UserService {
           if (
             myFollowings.find(
               (myFollowing) =>
-                myFollowing.followingId === followingOfMyFollowing.followingId
+                myFollowing.followingId === followingOfMyFollowing.followingId,
             )
           )
             continue;
@@ -775,7 +775,7 @@ class UserService {
       // cache the recommended users
       await redisClient.set(
         `RECOMMENDED_USERS:${userId}`,
-        JSON.stringify(recommendedUsers)
+        JSON.stringify(recommendedUsers),
       );
 
       return recommendedUsers;
@@ -787,14 +787,14 @@ class UserService {
 
   public static async setLastSeenAt(
     sessionUserId: string,
-    lastSeenAt: number
+    lastSeenAt: number,
   ): Promise<void> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
     if (!lastSeenAt || typeof lastSeenAt !== "number" || lastSeenAt <= 0)
       throw new ValidationError(
         "Valid lastSeenAt timestamp is required",
-        "lastSeenAt"
+        "lastSeenAt",
       );
 
     try {
@@ -809,7 +809,7 @@ class UserService {
   }
 
   public static async getLastSeenAt(
-    sessionUserId: string
+    sessionUserId: string,
   ): Promise<Date | null> {
     if (!sessionUserId)
       throw new ValidationError("Session user ID is required", "sessionUserId");
@@ -830,7 +830,7 @@ class UserService {
 
   public static getSessionUserAsConnection(
     sessionUserId: string,
-    connections: User[]
+    connections: User[],
   ): User | undefined {
     for (const myConnection of connections) {
       if (myConnection?.id === sessionUserId) return myConnection;
@@ -839,13 +839,13 @@ class UserService {
 
   public static getMutualConnections(
     sessionUserId: string,
-    connections: any[]
+    connections: any[],
   ): User[] {
     const mutualConnections: User[] = [];
 
     for (const myConnection of connections) {
       const followersOfMyConnection = myConnection.followings.map(
-        (follow: any) => follow.follower
+        (follow: any) => follow.follower,
       );
 
       for (const followerOfMyConnection of followersOfMyConnection) {
@@ -859,17 +859,17 @@ class UserService {
   public static getRemainingConnections(
     sessionUserId: string,
     connections: User[],
-    mutualConnections: User[]
+    mutualConnections: User[],
   ): User[] {
     if (mutualConnections.length === 0)
       return connections.filter(
-        (myConnection) => myConnection?.id !== sessionUserId
+        (myConnection) => myConnection?.id !== sessionUserId,
       ) as User[];
 
     const remainingConnections: User[] = [];
     for (const myConnection of connections) {
       const isMutualConnection = mutualConnections.find(
-        (mutualConnection) => myConnection?.id === mutualConnection.id
+        (mutualConnection) => myConnection?.id === mutualConnection.id,
       );
       if (isMutualConnection) continue;
       if (myConnection?.id === sessionUserId) continue;
@@ -880,22 +880,22 @@ class UserService {
 
   public static getRearrangedConnectionsBasedOnSessionUser(
     sessionUserId: string,
-    connections: User[]
+    connections: User[],
   ) {
     const sessionUserAsConnection = UserService.getSessionUserAsConnection(
       sessionUserId,
-      connections
+      connections,
     );
 
     const mutualConnections = UserService.getMutualConnections(
       sessionUserId,
-      connections
+      connections,
     );
 
     const remainingConnections = UserService.getRemainingConnections(
       sessionUserId,
       connections,
-      mutualConnections
+      mutualConnections,
     );
 
     if (!sessionUserAsConnection)
