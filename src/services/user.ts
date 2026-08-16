@@ -377,6 +377,16 @@ class UserService {
         to,
       );
 
+      // delete the recommended user cache for the sesssion user's followers.
+      let sessionUserFollowers = await prismaClient.follows.findMany({
+        where: { followingId: from },
+      });
+      await redisClient.del(
+        ...sessionUserFollowers.map(
+          (follower) => `RECOMMENDED_USERS:${follower.followerId}`,
+        ),
+      );
+
       // invalidate relevant caches
       await Promise.all([
         redisClient.del(`FOLLOWERS_COUNT:${to}`),
@@ -431,6 +441,16 @@ class UserService {
         NotificationType.FOLLOW,
         from,
         to,
+      );
+
+      // delete the recommended user cache for the sesssion user's followers.
+      let sessionUserFollowers = await prismaClient.follows.findMany({
+        where: { followingId: from },
+      });
+      await redisClient.del(
+        ...sessionUserFollowers.map(
+          (follower) => `RECOMMENDED_USERS:${follower.followerId}`,
+        ),
       );
 
       // invalidate relevant caches
