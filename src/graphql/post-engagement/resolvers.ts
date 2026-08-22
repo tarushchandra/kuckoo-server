@@ -17,8 +17,8 @@ export const queries = {
   },
   getCommentsOfComment: async (
     _: any,
-    { postId, commentId }: { postId: string; commentId: string }
-  ) => PostEngagementService.getCommentsOfComment(commentId, postId),
+    { commentId }: { postId: string; commentId: string }
+  ) => PostEngagementService.getCommentsOfComment(commentId),
   getComment: async (
     _: any,
     { postId, commentId }: { postId: string; commentId: string }

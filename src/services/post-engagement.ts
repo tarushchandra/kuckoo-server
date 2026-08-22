@@ -82,9 +82,8 @@ export class PostEngagementService {
     if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
-      const foundPostEngagement = await PostEngagementService.getPostEngagement(
-        postId
-      );
+      const foundPostEngagement =
+        await PostEngagementService.getPostEngagement(postId);
       if (!foundPostEngagement)
         await PostEngagementService.createPostEngagement(postId);
     } catch (err) {
@@ -632,15 +631,13 @@ export class PostEngagementService {
   }
 
   public static async getCommentsOfComment(
-    commentId: string,
-    postId: string
+    commentId: string
   ): Promise<Comment[]> {
     if (!commentId) throw new ValidationError("Comment ID is required");
-    if (!postId) throw new ValidationError("Post ID is required", "postId");
 
     try {
       return await prismaClient.comment.findMany({
-        where: { parentCommentId: commentId, postId },
+        where: { parentCommentId: commentId },
         orderBy: { createdAt: "asc" },
       });
     } catch (err) {
